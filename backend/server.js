@@ -2,8 +2,14 @@ const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
+const dns = require("dns");
 require("dotenv").config();
 const { telemetryEngine } = require("./telemetryEngine");
+
+// Force IPv4 DNS resolution first to avoid IPv6 NAT64 prefix (64:ff9b::) timeouts on cloud hosts (Render/Docker/Linux)
+if (typeof dns.setDefaultResultOrder === "function") {
+  dns.setDefaultResultOrder("ipv4first");
+}
 
 const app = express();
 
@@ -39,6 +45,22 @@ try {
   }
 } catch (err) {
   console.warn("Could not load persisted session:", err.message);
+}
+
+// Fallback to environment variables if session file not present (ideal for Render/Docker)
+if (!activeSession && process.env.JCTSL_AUTH_TOKEN && process.env.JCTSL_USER_ID) {
+  activeSession = {
+    authToken: process.env.JCTSL_AUTH_TOKEN,
+    userId: process.env.JCTSL_USER_ID,
+    mobile: process.env.JCTSL_MOBILE || "9000090000",
+    user: {
+      mobile: process.env.JCTSL_MOBILE || "9000090000",
+      firstName: process.env.JCTSL_FIRST_NAME || "JBL",
+      lastName: process.env.JCTSL_LAST_NAME || "User",
+      email: process.env.JCTSL_EMAIL || "",
+    },
+  };
+  console.log("Loaded JCTSL session from environment variables.");
 }
 
 function saveSession(session) {
@@ -90,6 +112,7 @@ app.get("/api/health", (req, res) => {
 |--------------------------------------------------------------------------
 | HELPER: AUTH CHECK
 | Supports incoming headers, or automatically attaches backend activeSession.
+| Never exposes credentials to client or logs.
 |--------------------------------------------------------------------------
 */
 function getAuthHeaders(req) {
@@ -104,10 +127,117 @@ function getAuthHeaders(req) {
   }
 
   return {
+    "User-Agent": "okhttp/4.9.0",
+    "Accept": "application/json",
     "Content-Type": "application/json",
     "Auth-token": authToken,
     "User-ID": String(userId),
   };
+}
+
+/*
+|--------------------------------------------------------------------------
+| RESILIENT UPSTREAM JCTSL FETCH CLIENT
+| - Safe diagnostic logging (URL, method, status, size, error code — ZERO credentials)
+| - Explicit 12-second AbortController timeout to prevent stuck cloud requests
+| - Mobile client headers (User-Agent: okhttp/4.9.0, Accept: application/json)
+| - Safe non-JSON response handling (never throws SyntaxError on HTML/PHP notices)
+| - Error cause/code preservation for immediate diagnostic insight
+|--------------------------------------------------------------------------
+*/
+async function jctslFetch(endpoint, {
+  method = "POST",
+  headers = {},
+  body = null,
+  timeoutMs = 12000,
+  context = "general",
+} = {}) {
+  const url = endpoint.startsWith("http")
+    ? endpoint
+    : `${JCTSL_BASE_URL}${endpoint.replace(/^\//, "")}`;
+
+  const hasAuthToken = Boolean(headers?.["Auth-token"]);
+  const hasUserId = Boolean(headers?.["User-ID"]);
+
+  let orgId = null;
+  if (body) {
+    try {
+      const parsed = typeof body === "string" ? JSON.parse(body) : body;
+      orgId = parsed.org_id || parsed.city_id || parsed.route_id || parsed.route_no || null;
+    } catch (_) {}
+  }
+
+  // Safe outbound logging (NEVER print token, user ID, or sensitive body fields)
+  console.log(
+    `[JCTSL Upstream Request] context=${context} | method=${method} | url=${url} | org_id=${orgId ?? "N/A"} | hasAuthToken=${hasAuthToken} | hasUserId=${hasUserId}`
+  );
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort(new Error(`Upstream request to ${url} timed out after ${timeoutMs}ms`));
+  }, timeoutMs);
+
+  const mergedHeaders = {
+    "User-Agent": "okhttp/4.9.0",
+    "Accept": "application/json",
+    ...headers,
+  };
+
+  try {
+    const response = await fetch(url, {
+      method,
+      headers: mergedHeaders,
+      body: body ? (typeof body === "string" ? body : JSON.stringify(body)) : undefined,
+      signal: controller.signal,
+    });
+
+    const rawText = await response.text();
+    const contentType = response.headers.get("content-type") || "unknown";
+
+    // Safe response logging (Zero credentials logged)
+    console.log(
+      `[JCTSL Upstream Response] context=${context} | status=${response.status} | contentType=${contentType} | bodyLength=${rawText.length} | url=${url}`
+    );
+
+    let jsonData = null;
+    let isJson = false;
+    try {
+      jsonData = JSON.parse(rawText);
+      isJson = true;
+    } catch (parseErr) {
+      console.warn(
+        `[JCTSL Upstream Non-JSON] context=${context} | status=${response.status} | contentType=${contentType} | preview=${rawText.slice(0, 160).replace(/\s+/g, " ")}`
+      );
+    }
+
+    return {
+      ok: response.ok,
+      status: response.status,
+      headers: response.headers,
+      contentType,
+      rawText,
+      isJson,
+      data: jsonData,
+    };
+  } catch (err) {
+    const cause = err.cause || {};
+    const errorCode = cause.code || err.code || (err.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
+    const causeMsg = cause.message || err.message || "Unknown fetch error";
+
+    console.error(
+      `[JCTSL Fetch Error] context=${context} | url=${url} | name=${err.name} | message=${err.message} | code=${errorCode} | causeName=${cause.name || "N/A"} | causeMessage=${causeMsg}`
+    );
+
+    const wrappedError = new Error(err.message || "Fetch failed");
+    wrappedError.name = err.name;
+    wrappedError.code = errorCode;
+    wrappedError.cause = cause;
+    wrappedError.url = url;
+    wrappedError.context = context;
+    throw wrappedError;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /*
@@ -147,15 +277,15 @@ app.post("/api/auth/send-otp", async (req, res) => {
       fcm_token: "",
     };
 
-    let logUsrResponse = await fetch(`${JCTSL_BASE_URL}log/usr`, {
+    let logUsrRes = await jctslFetch("log/usr", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(loginPayload),
+      headers: { "Content-Type": "application/json" },
+      body: loginPayload,
+      context: "sendOtp-login",
+      timeoutMs: 12000,
     });
 
-    let logUsrData = await logUsrResponse.json();
+    let logUsrData = logUsrRes.isJson ? logUsrRes.data : null;
 
     // If device mismatch ("1"), APK calls K("1") to confirm device switch
     if (logUsrData?.respData?.dev_mis_flag === "1") {
@@ -164,15 +294,15 @@ app.post("/api/auth/send-otp", async (req, res) => {
         req_type: "1",
       };
 
-      logUsrResponse = await fetch(`${JCTSL_BASE_URL}log/usr`, {
+      logUsrRes = await jctslFetch("log/usr", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(switchPayload),
+        headers: { "Content-Type": "application/json" },
+        body: switchPayload,
+        context: "sendOtp-switch",
+        timeoutMs: 12000,
       });
 
-      logUsrData = await logUsrResponse.json();
+      logUsrData = logUsrRes.isJson ? logUsrRes.data : null;
     }
 
     const respData = logUsrData?.respData;
@@ -279,15 +409,15 @@ app.post("/api/auth/verify-otp", async (req, res) => {
       mobile: cleanMobile,
     };
 
-    const verifyResponse = await fetch(`${JCTSL_BASE_URL}verifyuser`, {
+    const verifyUpstream = await jctslFetch("verifyuser", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(verifyPayload),
+      headers: { "Content-Type": "application/json" },
+      body: verifyPayload,
+      context: "verifyOtp",
+      timeoutMs: 12000,
     });
 
-    const verifyData = await verifyResponse.json();
+    const verifyData = verifyUpstream.isJson ? verifyUpstream.data : null;
 
     if (
       verifyData?.respCode !== "200" ||
@@ -373,20 +503,37 @@ app.post("/api/cities", async (req, res) => {
       });
     }
 
-    const response = await fetch(`${JCTSL_BASE_URL}SUser/citiList`, {
+    const upstream = await jctslFetch("SUser/citiList", {
       method: "POST",
       headers,
-      body: JSON.stringify({}),
+      body: {},
+      context: "handleCities",
+      timeoutMs: 12000,
     });
 
-    const data = await response.json();
-    return res.status(response.status).json(data);
+    if (!upstream.isJson || !upstream.data) {
+      return res.status(upstream.ok ? 200 : 502).json({
+        respCode: "0",
+        respMessage: "Upstream JCTSL service returned non-JSON response",
+        upstreamStatus: upstream.status,
+      });
+    }
+
+    return res.status(upstream.status).json(upstream.data);
   } catch (error) {
-    console.error("Cities fetch error:", error);
+    const cause = error.cause || {};
+    const errorCode = error.code || cause.code || (error.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
+    console.error(`[Cities Error] ${error.name}: ${error.message} (code: ${errorCode}, cause: ${cause.message || "N/A"})`);
     return res.status(500).json({
       success: false,
       message: "Unable to fetch cities",
       error: error.message,
+      errorCode,
+      errorDetails: {
+        name: error.name,
+        code: errorCode,
+        causeMessage: cause.message || null,
+      },
     });
   }
 });
@@ -536,26 +683,28 @@ async function findValidRoutesBetweenStops(
   // Ensure stops cache
   if (!busStopsCache) {
     try {
-      const res = await fetch(`${JCTSL_BASE_URL}usr/citibuslist`, {
+      const res = await jctslFetch("usr/citibuslist", {
         method: "POST",
         headers,
-        body: JSON.stringify({ city_id: "1" }),
+        body: { city_id: "1" },
+        context: "findValidRoutes-stops",
+        timeoutMs: 12000,
       });
-      const d = await res.json();
-      if (d?.respCode === "200") busStopsCache = d;
+      if (res.isJson && res.data?.respCode === "200") busStopsCache = res.data;
     } catch (_) {}
   }
 
   // Ensure routes cache
   if (!availableRoutesCache) {
     try {
-      const res = await fetch(`${JCTSL_BASE_URL}Log/getAvailableroutes`, {
+      const res = await jctslFetch("Log/getAvailableroutes", {
         method: "POST",
         headers,
-        body: JSON.stringify({ city_id: "1" }),
+        body: { city_id: "1" },
+        context: "findValidRoutes-routes",
+        timeoutMs: 12000,
       });
-      const d = await res.json();
-      if (d?.respCode === "200") availableRoutesCache = d;
+      if (res.isJson && res.data?.respCode === "200") availableRoutesCache = res.data;
     } catch (_) {}
   }
 
@@ -588,13 +737,14 @@ async function findValidRoutesBetweenStops(
   // Fetch live city buses once
   let cityBuses = [];
   try {
-    const cbRes = await fetch(`${JCTSL_BASE_URL}allvehloc`, {
+    const cbRes = await jctslFetch("allvehloc", {
       method: "POST",
       headers,
-      body: JSON.stringify({ org_id: "1" }),
+      body: { org_id: "1" },
+      context: "findValidRoutes-allvehloc",
+      timeoutMs: 12000,
     });
-    const cbData = await cbRes.json();
-    if (Array.isArray(cbData?.respData)) cityBuses = cbData.respData;
+    if (cbRes.isJson && Array.isArray(cbRes.data?.respData)) cityBuses = cbRes.data.respData;
   } catch (_) {}
 
   const validRoutes = [];
@@ -605,13 +755,15 @@ async function findValidRoutesBetweenStops(
 
     if (!mapData) {
       try {
-        const mRes = await fetch(`${JCTSL_BASE_URL}rt/bspdtl`, {
+        const mRes = await jctslFetch("rt/bspdtl", {
           method: "POST",
           headers,
-          body: JSON.stringify({ route_no: routeId, vehicle_number: "" }),
+          body: { route_no: routeId, vehicle_number: "" },
+          context: "findValidRoutes-bspdtl",
+          timeoutMs: 12000,
         });
-        mapData = await mRes.json();
-        if (mapData?.respCode === "200") {
+        if (mRes.isJson && mRes.data?.respCode === "200") {
+          mapData = mRes.data;
           routeMapCache.set(routeId, mapData);
         }
       } catch (_) {
@@ -633,12 +785,14 @@ async function findValidRoutesBetweenStops(
     const routeBusesMap = new Map();
 
     try {
-      const liveRes = await fetch(`${JCTSL_BASE_URL}rt/rvsearching`, {
+      const liveRes = await jctslFetch("rt/rvsearching", {
         method: "POST",
         headers,
-        body: JSON.stringify({ route_id: routeId }),
+        body: { route_id: routeId },
+        context: "findValidRoutes-rvsearching",
+        timeoutMs: 12000,
       });
-      const liveData = await liveRes.json();
+      const liveData = liveRes.isJson ? liveRes.data : null;
 
       if (Array.isArray(liveData?.respData?.route)) {
         liveData.respData.route.forEach((st) => {
@@ -793,25 +947,41 @@ const handleBusStops = async (req, res) => {
 
     const targetUrl = `${targetBase}usr/citibuslist`;
 
-    const response = await fetch(targetUrl, {
+    const upstream = await jctslFetch(targetUrl, {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        city_id: String(city_id),
-      }),
+      body: { city_id: String(city_id) },
+      context: "handleBusStops",
+      timeoutMs: 12000,
     });
 
-    const data = await response.json();
-    if (response.ok && data?.respCode === "200") {
+    if (!upstream.isJson || !upstream.data) {
+      return res.status(upstream.ok ? 200 : 502).json({
+        respCode: "0",
+        respMessage: "Upstream JCTSL service returned non-JSON response",
+        upstreamStatus: upstream.status,
+      });
+    }
+
+    const data = upstream.data;
+    if (upstream.ok && data?.respCode === "200") {
       busStopsCache = data;
     }
-    return res.status(response.status).json(data);
+    return res.status(upstream.status).json(data);
   } catch (error) {
-    console.error("Bus stops fetch error:", error);
+    const cause = error.cause || {};
+    const errorCode = error.code || cause.code || (error.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
+    console.error(`[Bus Stops Error] ${error.name}: ${error.message} (code: ${errorCode}, cause: ${cause.message || "N/A"})`);
     return res.status(500).json({
       success: false,
       message: "Unable to fetch bus stops",
       error: error.message,
+      errorCode,
+      errorDetails: {
+        name: error.name,
+        code: errorCode,
+        causeMessage: cause.message || null,
+      },
     });
   }
 };
@@ -849,24 +1019,41 @@ const handleBusesNearStop = async (req, res) => {
       });
     }
 
-    const response = await fetch(`${JCTSL_BASE_URL}log/vehnearstop`, {
+    const upstream = await jctslFetch("log/vehnearstop", {
       method: "POST",
       headers,
-      body: JSON.stringify({
+      body: {
         bus_stop_cd: String(stopCode),
         ver_nm: "1.5.1",
         ver_cd: "30",
-      }),
+      },
+      context: "handleBusesNearStop",
+      timeoutMs: 12000,
     });
 
-    const data = await response.json();
-    return res.status(response.status).json(data);
+    if (!upstream.isJson || !upstream.data) {
+      return res.status(upstream.ok ? 200 : 502).json({
+        respCode: "0",
+        respMessage: "Upstream JCTSL service returned non-JSON response",
+        upstreamStatus: upstream.status,
+      });
+    }
+
+    return res.status(upstream.status).json(upstream.data);
   } catch (error) {
-    console.error("Buses near stop fetch error:", error);
+    const cause = error.cause || {};
+    const errorCode = error.code || cause.code || (error.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
+    console.error(`[Buses Near Stop Error] ${error.name}: ${error.message} (code: ${errorCode}, cause: ${cause.message || "N/A"})`);
     return res.status(500).json({
       success: false,
       message: "Unable to fetch buses for selected stop",
       error: error.message,
+      errorCode,
+      errorDetails: {
+        name: error.name,
+        code: errorCode,
+        causeMessage: cause.message || null,
+      },
     });
   }
 };
@@ -884,36 +1071,36 @@ const handleLiveBuses = async (req, res) => {
   try {
     const headers = getAuthHeaders(req);
     if (!headers) {
+      console.warn("[Live Buses] Request rejected: No active session or auth headers available");
       return res.status(401).json({
         success: false,
-        message: "Login required for live JCTSL data",
+        message: "Login required for live JCTSL data. No active session or Auth-token found.",
         requiresAuth: true,
       });
     }
 
     const org_id = req.query?.org_id || req.body?.org_id || "1";
 
-    const response = await fetch(`${JCTSL_BASE_URL}allvehloc`, {
+    const upstream = await jctslFetch("allvehloc", {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        org_id: String(org_id),
-      }),
+      body: { org_id: String(org_id) },
+      context: "handleLiveBuses",
+      timeoutMs: 12000,
     });
 
-    const rawText = await response.text();
-    let data;
-    try {
-      data = JSON.parse(rawText);
-    } catch {
+    if (!upstream.isJson || !upstream.data) {
+      console.warn("[Live Buses] Upstream returned non-JSON. Serving cached telemetry.");
       return res.json({
         respCode: "0",
-        respMessage: "Invalid response from JCTSL telemetry service",
+        respMessage: "Upstream JCTSL service returned non-JSON response",
+        upstreamStatus: upstream.status,
         summary: telemetryEngine.getSummary(),
         respData: telemetryEngine.getLiveVehicles(),
       });
     }
 
+    const data = upstream.data;
     const rawVehicles = Array.isArray(data?.respData)
       ? data.respData
       : Array.isArray(data)
@@ -922,18 +1109,28 @@ const handleLiveBuses = async (req, res) => {
 
     const { summary, vehicles } = telemetryEngine.processTelemetry(rawVehicles);
 
-    return res.status(response.status).json({
+    return res.status(upstream.status).json({
       respCode: data?.respCode || "200",
       respMessage: data?.respMessage || "Success",
       summary,
       respData: vehicles,
     });
   } catch (error) {
-    console.error("Live buses error:", error);
+    const cause = error.cause || {};
+    const errorCode = error.code || cause.code || (error.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
+    console.error(`[Live Buses Error] ${error.name}: ${error.message} (code: ${errorCode}, cause: ${cause.message || "N/A"})`);
+
     return res.status(500).json({
       success: false,
-      message: "Unable to fetch live buses",
+      message: "Unable to fetch live buses from JCTSL upstream",
       error: error.message,
+      errorCode,
+      errorDetails: {
+        name: error.name,
+        code: errorCode,
+        causeMessage: cause.message || null,
+        url: error.url || "allvehloc",
+      },
     });
   }
 };
@@ -953,29 +1150,29 @@ async function pollJctslTelemetry() {
   try {
     const headers = getAuthHeaders();
     if (!headers) return;
-    const response = await fetch(`${JCTSL_BASE_URL}allvehloc`, {
+
+    const upstream = await jctslFetch("allvehloc", {
       method: "POST",
       headers,
-      body: JSON.stringify({ org_id: "1" }),
+      body: { org_id: "1" },
+      context: "backgroundPoll",
+      timeoutMs: 12000,
     });
-    if (!response.ok) return;
-    const rawText = await response.text();
-    let data;
-    try {
-      data = JSON.parse(rawText);
-    } catch {
-      return;
-    }
+
+    if (!upstream.isJson || !upstream.data) return;
+
+    const data = upstream.data;
     const rawVehicles = Array.isArray(data?.respData)
       ? data.respData
       : Array.isArray(data)
       ? data
       : [];
+
     if (rawVehicles.length > 0) {
       telemetryEngine.processTelemetry(rawVehicles);
     }
   } catch (err) {
-    // Suppress background poll errors to keep logs clean
+    // Keep background poll quiet while logging minimal failure
   }
 }
 
@@ -1066,25 +1263,41 @@ const handleAvailableRoutes = async (req, res) => {
     }
 
     const city_id = req.query?.city_id || req.body?.city_id || "1";
-    const response = await fetch(`${JCTSL_BASE_URL}Log/getAvailableroutes`, {
+    const upstream = await jctslFetch("Log/getAvailableroutes", {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        city_id: String(city_id),
-      }),
+      body: { city_id: String(city_id) },
+      context: "handleAvailableRoutes",
+      timeoutMs: 12000,
     });
 
-    const data = await response.json();
-    if (response.ok && data?.respCode === "200") {
+    if (!upstream.isJson || !upstream.data) {
+      return res.status(upstream.ok ? 200 : 502).json({
+        respCode: "0",
+        respMessage: "Upstream JCTSL service returned non-JSON response",
+        upstreamStatus: upstream.status,
+      });
+    }
+
+    const data = upstream.data;
+    if (upstream.ok && data?.respCode === "200") {
       availableRoutesCache = data;
     }
-    return res.status(response.status).json(data);
+    return res.status(upstream.status).json(data);
   } catch (error) {
-    console.error("Available routes error:", error);
+    const cause = error.cause || {};
+    const errorCode = error.code || cause.code || (error.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
+    console.error(`[Available Routes Error] ${error.name}: ${error.message} (code: ${errorCode}, cause: ${cause.message || "N/A"})`);
     return res.status(500).json({
       success: false,
       message: "Unable to fetch available routes",
       error: error.message,
+      errorCode,
+      errorDetails: {
+        name: error.name,
+        code: errorCode,
+        causeMessage: cause.message || null,
+      },
     });
   }
 };
@@ -1112,15 +1325,18 @@ app.get("/api/routes/search", async (req, res) => {
     }
 
     if (!availableRoutesCache) {
-      const response = await fetch(`${JCTSL_BASE_URL}Log/getAvailableroutes`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ city_id: "1" }),
-      });
-      const data = await response.json();
-      if (response.ok && data?.respCode === "200") {
-        availableRoutesCache = data;
-      }
+      try {
+        const upstream = await jctslFetch("Log/getAvailableroutes", {
+          method: "POST",
+          headers,
+          body: { city_id: "1" },
+          context: "routeSearch-warmRoutes",
+          timeoutMs: 12000,
+        });
+        if (upstream.isJson && upstream.ok && upstream.data?.respCode === "200") {
+          availableRoutesCache = upstream.data;
+        }
+      } catch (_) {}
     }
 
     const routes = availableRoutesCache?.respData || [];
@@ -1209,22 +1425,37 @@ const handleLiveRoute = async (req, res) => {
       });
     }
 
-    const response = await fetch(`${JCTSL_BASE_URL}rt/rvsearching`, {
+    const upstream = await jctslFetch("rt/rvsearching", {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        route_id: String(route_id),
-      }),
+      body: { route_id: String(route_id) },
+      context: "handleLiveRoute",
+      timeoutMs: 12000,
     });
 
-    const data = await response.json();
-    return res.status(response.status).json(data);
+    if (!upstream.isJson || !upstream.data) {
+      return res.status(upstream.ok ? 200 : 502).json({
+        respCode: "0",
+        respMessage: "Upstream JCTSL service returned non-JSON response",
+        upstreamStatus: upstream.status,
+      });
+    }
+
+    return res.status(upstream.status).json(upstream.data);
   } catch (error) {
-    console.error("Live route error:", error);
+    const cause = error.cause || {};
+    const errorCode = error.code || cause.code || (error.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
+    console.error(`[Live Route Error] ${error.name}: ${error.message} (code: ${errorCode}, cause: ${cause.message || "N/A"})`);
     return res.status(500).json({
       success: false,
       message: "Unable to fetch live route data",
       error: error.message,
+      errorCode,
+      errorDetails: {
+        name: error.name,
+        code: errorCode,
+        causeMessage: cause.message || null,
+      },
     });
   }
 };
@@ -1266,26 +1497,44 @@ const handleRouteMap = async (req, res) => {
       return res.json(routeMapCache.get(routeKey));
     }
 
-    const response = await fetch(`${JCTSL_BASE_URL}rt/bspdtl`, {
+    const upstream = await jctslFetch("rt/bspdtl", {
       method: "POST",
       headers,
-      body: JSON.stringify({
+      body: {
         route_no: routeKey,
         vehicle_number: String(vehicle_number || ""),
-      }),
+      },
+      context: "handleRouteMap",
+      timeoutMs: 12000,
     });
 
-    const data = await response.json();
-    if (response.ok && data?.respCode === "200" && !vehicle_number) {
+    if (!upstream.isJson || !upstream.data) {
+      return res.status(upstream.ok ? 200 : 502).json({
+        respCode: "0",
+        respMessage: "Upstream JCTSL service returned non-JSON response",
+        upstreamStatus: upstream.status,
+      });
+    }
+
+    const data = upstream.data;
+    if (upstream.ok && data?.respCode === "200" && !vehicle_number) {
       routeMapCache.set(routeKey, data);
     }
-    return res.status(response.status).json(data);
+    return res.status(upstream.status).json(data);
   } catch (error) {
-    console.error("Route map error:", error);
+    const cause = error.cause || {};
+    const errorCode = error.code || cause.code || (error.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
+    console.error(`[Route Map Error] ${error.name}: ${error.message} (code: ${errorCode}, cause: ${cause.message || "N/A"})`);
     return res.status(500).json({
       success: false,
       message: "Unable to fetch route map data",
       error: error.message,
+      errorCode,
+      errorDetails: {
+        name: error.name,
+        code: errorCode,
+        causeMessage: cause.message || null,
+      },
     });
   }
 };
@@ -1331,21 +1580,19 @@ const handleBusTrack = async (req, res) => {
       });
     }
 
-    const response = await fetch(`${JCTSL_BASE_URL}rt/bstrack`, {
+    const upstream = await jctslFetch("rt/bstrack", {
       method: "POST",
       headers,
-      body: JSON.stringify({
+      body: {
         route_number: String(route_number),
         vehicle_number: String(vehicle_number),
         order_id: String(order_id || ""),
-      }),
+      },
+      context: "handleBusTrack",
+      timeoutMs: 12000,
     });
 
-    const rawText = await response.text();
-    let data;
-    try {
-      data = JSON.parse(rawText);
-    } catch {
+    if (!upstream.isJson || !upstream.data) {
       return res.json({
         success: false,
         respCode: "0",
@@ -1353,13 +1600,21 @@ const handleBusTrack = async (req, res) => {
       });
     }
 
-    return res.status(response.status).json(data);
+    return res.status(upstream.status).json(upstream.data);
   } catch (error) {
-    console.error("Bus track error:", error);
+    const cause = error.cause || {};
+    const errorCode = error.code || cause.code || (error.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
+    console.error(`[Bus Track Error] ${error.name}: ${error.message} (code: ${errorCode}, cause: ${cause.message || "N/A"})`);
     return res.status(500).json({
       success: false,
       message: "Unable to track bus",
       error: error.message,
+      errorCode,
+      errorDetails: {
+        name: error.name,
+        code: errorCode,
+        causeMessage: cause.message || null,
+      },
     });
   }
 };
@@ -1400,25 +1655,42 @@ const handleFare = async (req, res) => {
 
     const bus_type = req.query?.bus_type || req.body?.bus_type || "";
 
-    const response = await fetch(`${JCTSL_BASE_URL}rt/gptkt`, {
+    const upstream = await jctslFetch("rt/gptkt", {
       method: "POST",
       headers,
-      body: JSON.stringify({
+      body: {
         from_stop: String(from_stop),
         to_stop: String(to_stop),
         route_id: String(route_id),
         bus_type: String(bus_type),
-      }),
+      },
+      context: "handleFare",
+      timeoutMs: 12000,
     });
 
-    const data = await response.json();
-    return res.status(response.status).json(data);
+    if (!upstream.isJson || !upstream.data) {
+      return res.status(upstream.ok ? 200 : 502).json({
+        respCode: "0",
+        respMessage: "Upstream JCTSL service returned non-JSON response",
+        upstreamStatus: upstream.status,
+      });
+    }
+
+    return res.status(upstream.status).json(upstream.data);
   } catch (error) {
-    console.error("Fare calculate error:", error);
+    const cause = error.cause || {};
+    const errorCode = error.code || cause.code || (error.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
+    console.error(`[Fare Error] ${error.name}: ${error.message} (code: ${errorCode}, cause: ${cause.message || "N/A"})`);
     return res.status(500).json({
       success: false,
       message: "Unable to calculate fare",
       error: error.message,
+      errorCode,
+      errorDetails: {
+        name: error.name,
+        code: errorCode,
+        causeMessage: cause.message || null,
+      },
     });
   }
 };
@@ -1452,22 +1724,39 @@ const handleBusTimings = async (req, res) => {
       });
     }
 
-    const response = await fetch(`${JCTSL_BASE_URL}log/gettrps`, {
+    const upstream = await jctslFetch("log/gettrps", {
       method: "POST",
       headers,
-      body: JSON.stringify({
+      body: {
         route_id: String(route_id),
-      }),
+      },
+      context: "handleBusTimings",
+      timeoutMs: 12000,
     });
 
-    const data = await response.json();
-    return res.status(response.status).json(data);
+    if (!upstream.isJson || !upstream.data) {
+      return res.status(upstream.ok ? 200 : 502).json({
+        respCode: "0",
+        respMessage: "Upstream JCTSL service returned non-JSON response",
+        upstreamStatus: upstream.status,
+      });
+    }
+
+    return res.status(upstream.status).json(upstream.data);
   } catch (error) {
-    console.error("Bus timings error:", error);
+    const cause = error.cause || {};
+    const errorCode = error.code || cause.code || (error.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
+    console.error(`[Bus Timings Error] ${error.name}: ${error.message} (code: ${errorCode}, cause: ${cause.message || "N/A"})`);
     return res.status(500).json({
       success: false,
       message: "Unable to fetch bus timings",
       error: error.message,
+      errorCode,
+      errorDetails: {
+        name: error.name,
+        code: errorCode,
+        causeMessage: cause.message || null,
+      },
     });
   }
 };
@@ -1485,15 +1774,18 @@ async function warmRouteMaps() {
 
     // First ensure availableRoutes is fetched
     if (!availableRoutesCache) {
-      const routesRes = await fetch(`${JCTSL_BASE_URL}Log/getAvailableroutes`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ city_id: "1" }),
-      });
-      const rData = await routesRes.json();
-      if (rData?.respCode === "200") {
-        availableRoutesCache = rData;
-      }
+      try {
+        const routesRes = await jctslFetch("Log/getAvailableroutes", {
+          method: "POST",
+          headers,
+          body: { city_id: "1" },
+          context: "warmRouteMaps-routes",
+          timeoutMs: 12000,
+        });
+        if (routesRes.isJson && routesRes.data?.respCode === "200") {
+          availableRoutesCache = routesRes.data;
+        }
+      } catch (_) {}
     }
 
     const routes = availableRoutesCache?.respData || [];
@@ -1501,14 +1793,15 @@ async function warmRouteMaps() {
       const rId = String(r.route_id).trim();
       if (rId && !routeMapCache.has(rId)) {
         try {
-          const mapRes = await fetch(`${JCTSL_BASE_URL}rt/bspdtl`, {
+          const mapRes = await jctslFetch("rt/bspdtl", {
             method: "POST",
             headers,
-            body: JSON.stringify({ route_no: rId, vehicle_number: "" }),
+            body: { route_no: rId, vehicle_number: "" },
+            context: "warmRouteMaps-bspdtl",
+            timeoutMs: 12000,
           });
-          const mData = await mapRes.json();
-          if (mData?.respCode === "200") {
-            routeMapCache.set(rId, mData);
+          if (mapRes.isJson && mapRes.data?.respCode === "200") {
+            routeMapCache.set(rId, mapRes.data);
           }
         } catch (_) {}
         // Sleep 150ms between warming calls to be gentle to JCTSL
