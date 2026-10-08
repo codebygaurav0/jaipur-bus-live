@@ -3,6 +3,7 @@ const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
 const dns = require("dns");
+const https = require("https");
 require("dotenv").config();
 const { telemetryEngine } = require("./telemetryEngine");
 
@@ -105,6 +106,253 @@ app.get("/api/health", (req, res) => {
     message: "JBL backend is working",
     hasActiveSession: !!activeSession,
     sessionUser: activeSession?.user || null,
+  });
+});
+
+/*
+|--------------------------------------------------------------------------
+| SAFE NETWORK & CONNECTIVITY DIAGNOSTIC ENDPOINT
+| Used to diagnose cloud host (Render) outbound HTTPS connectivity to JCTSL.
+| Strictly reports network metrics, DNS records, TLS details, and error codes.
+| NEVER exposes Auth-token, User-ID, session secrets, cookies, or credentials.
+|--------------------------------------------------------------------------
+*/
+function safeHttpsProbe({ host, ip = null, servername = null, path = "/OMB/", timeoutMs = 6000 }) {
+  const start = Date.now();
+  return new Promise((resolve) => {
+    let settled = false;
+    const connectHost = ip || host;
+
+    const req = https.request({
+      host: connectHost,
+      port: 443,
+      path: path,
+      method: "GET",
+      servername: servername || host,
+      headers: {
+        "Host": host,
+        "User-Agent": "okhttp/4.9.0",
+        "Accept": "*/*",
+      },
+      timeout: timeoutMs,
+    }, (res) => {
+      if (settled) return;
+      settled = true;
+      const elapsed = Date.now() - start;
+      const socket = res.socket;
+      const cert = socket?.getPeerCertificate ? socket.getPeerCertificate() : null;
+
+      resolve({
+        success: true,
+        statusCode: res.statusCode,
+        statusMessage: res.statusMessage,
+        serverHeader: res.headers["server"] || null,
+        contentType: res.headers["content-type"] || null,
+        remoteAddress: socket?.remoteAddress || null,
+        remoteFamily: socket?.remoteFamily || null,
+        tlsAuthorized: socket?.authorized ?? null,
+        tlsProtocol: socket?.getProtocol ? socket.getProtocol() : null,
+        tlsCipher: socket?.getCipher ? socket.getCipher()?.name : null,
+        certSubject: cert?.subject?.CN || null,
+        elapsedMs: elapsed,
+        error: null,
+      });
+      res.resume();
+    });
+
+    req.on("timeout", () => {
+      if (settled) return;
+      settled = true;
+      req.destroy(new Error(`CONNECT_TIMEOUT: Connection timed out after ${timeoutMs}ms`));
+    });
+
+    req.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      const elapsed = Date.now() - start;
+      resolve({
+        success: false,
+        statusCode: null,
+        statusMessage: null,
+        serverHeader: null,
+        contentType: null,
+        remoteAddress: null,
+        remoteFamily: null,
+        tlsAuthorized: null,
+        tlsProtocol: null,
+        tlsCipher: null,
+        certSubject: null,
+        elapsedMs: elapsed,
+        error: {
+          name: err.name,
+          code: err.code || "UNKNOWN",
+          message: err.message,
+        },
+      });
+    });
+
+    req.end();
+  });
+}
+
+app.get("/api/jctsl-network-diagnostic", async (req, res) => {
+  const diagnosticStart = Date.now();
+  const parsedUrl = new URL(JCTSL_BASE_URL);
+  const targetHost = parsedUrl.hostname; // e.g. "www.omnificent.co.in"
+  const targetPath = parsedUrl.pathname.endsWith("/") ? parsedUrl.pathname : `${parsedUrl.pathname}/`; // "/OMB/"
+  const targetHttpsUrl = `${parsedUrl.origin}${targetPath}`;
+  const timeoutMs = 6000;
+
+  // 1. dns.lookup(host, { all: true })
+  let lookupResults = [];
+  let lookupError = null;
+  try {
+    lookupResults = await dns.promises.lookup(targetHost, { all: true });
+  } catch (err) {
+    lookupError = { name: err.name, code: err.code, message: err.message };
+  }
+
+  // 2. dns.promises.resolve4(host)
+  let resolve4Results = [];
+  let resolve4Error = null;
+  try {
+    resolve4Results = await dns.promises.resolve4(targetHost);
+  } catch (err) {
+    resolve4Error = { name: err.name, code: err.code, message: err.message };
+  }
+
+  // 3. dns.promises.resolve6(host)
+  let resolve6Results = [];
+  let resolve6Error = null;
+  try {
+    resolve6Results = await dns.promises.resolve6(targetHost);
+  } catch (err) {
+    resolve6Error = { name: err.name, code: err.code, message: err.message };
+  }
+
+  // 4 & 5. Availability of IPv4 and IPv6
+  const hasIpv4 =
+    (Array.isArray(resolve4Results) && resolve4Results.length > 0) ||
+    (Array.isArray(lookupResults) &&
+      lookupResults.some((r) => r.family === 4 || r.family === "IPv4"));
+
+  const hasIpv6 =
+    (Array.isArray(resolve6Results) && resolve6Results.length > 0) ||
+    (Array.isArray(lookupResults) &&
+      lookupResults.some((r) => r.family === 6 || r.family === "IPv6"));
+
+  // 6, 7, 8, 9. Standard HTTPS connection test to https://www.omnificent.co.in/OMB/
+  const httpsConnectionTest = await safeHttpsProbe({
+    host: targetHost,
+    path: targetPath,
+    timeoutMs,
+  });
+
+  // Separate safe test using Node's https.request with resolved IPv4 address while preserving TLS SNI
+  // - connect address = resolved IPv4
+  // - servername = www.omnificent.co.in
+  // - Host header = www.omnificent.co.in
+  // - path = /OMB/
+  let directIpv4SniTest = null;
+  const resolvedIpv4Candidate =
+    (Array.isArray(resolve4Results) && resolve4Results.length > 0
+      ? resolve4Results[0]
+      : null) ||
+    (Array.isArray(lookupResults)
+      ? lookupResults.find((r) => r.family === 4 || r.family === "IPv4")?.address
+      : null);
+
+  if (resolvedIpv4Candidate) {
+    const directProbe = await safeHttpsProbe({
+      host: targetHost,
+      ip: resolvedIpv4Candidate,
+      servername: targetHost,
+      path: targetPath,
+      timeoutMs,
+    });
+    directIpv4SniTest = {
+      tested: true,
+      resolvedIpv4: resolvedIpv4Candidate,
+      servername: targetHost,
+      hostHeader: targetHost,
+      path: targetPath,
+      ...directProbe,
+    };
+  } else {
+    directIpv4SniTest = {
+      tested: false,
+      reason: "No IPv4 address resolved via resolve4 or lookup",
+    };
+  }
+
+  // Undici / Native fetch connection test (6s timeout) for comparison
+  let undiciFetchTest = null;
+  const fetchStart = Date.now();
+  const fetchController = new AbortController();
+  const fetchTimer = setTimeout(() => fetchController.abort(), timeoutMs);
+  try {
+    const fetchRes = await fetch(targetHttpsUrl, {
+      method: "GET",
+      headers: {
+        "User-Agent": "okhttp/4.9.0",
+        "Accept": "*/*",
+      },
+      signal: fetchController.signal,
+    });
+    undiciFetchTest = {
+      success: true,
+      statusCode: fetchRes.status,
+      statusText: fetchRes.statusText,
+      serverHeader: fetchRes.headers.get("server") || null,
+      elapsedMs: Date.now() - fetchStart,
+      error: null,
+    };
+  } catch (fetchErr) {
+    const cause = fetchErr.cause || {};
+    undiciFetchTest = {
+      success: false,
+      statusCode: null,
+      statusText: null,
+      serverHeader: null,
+      elapsedMs: Date.now() - fetchStart,
+      error: {
+        name: fetchErr.name,
+        code: cause.code || fetchErr.code || (fetchErr.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR"),
+        message: fetchErr.message,
+        causeCode: cause.code || null,
+        causeMessage: cause.message || null,
+      },
+    };
+  } finally {
+    clearTimeout(fetchTimer);
+  }
+
+  const totalElapsedMs = Date.now() - diagnosticStart;
+
+  res.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    totalElapsedMs,
+    target: {
+      host: targetHost,
+      path: targetPath,
+      url: targetHttpsUrl,
+      port: 443,
+    },
+    dns: {
+      defaultResultOrder: typeof dns.getDefaultResultOrder === "function" ? dns.getDefaultResultOrder() : "unknown",
+      lookup: lookupResults,
+      lookupError,
+      resolve4: resolve4Results,
+      resolve4Error,
+      resolve6: resolve6Results,
+      resolve6Error,
+      hasIpv4,
+      hasIpv6,
+    },
+    httpsConnectionTest,
+    directIpv4SniTest,
+    undiciFetchTest,
   });
 });
 
