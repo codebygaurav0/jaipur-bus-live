@@ -537,3 +537,24 @@ module.exports = {
   safeHttpsProbe,
   safeTcpProbe,
 };
+
+if (require.main === module) {
+  const dns = require("dns");
+  const baseUrl = process.env.JCTSL_BASE_URL || "https://www.omnificent.co.in/OMB/";
+  runJctslNetworkDiagnostic({
+    baseUrl,
+    dnsPromises: dns.promises,
+    defaultResultOrder:
+      typeof dns.getDefaultResultOrder === "function"
+        ? dns.getDefaultResultOrder()
+        : "unknown",
+  })
+    .then((res) => {
+      console.log(JSON.stringify(res, null, 2));
+      process.exit(res.tcpConnectionTest?.success ? 0 : 1);
+    })
+    .catch((err) => {
+      console.error("Diagnostic execution failed:", err);
+      process.exit(1);
+    });
+}
