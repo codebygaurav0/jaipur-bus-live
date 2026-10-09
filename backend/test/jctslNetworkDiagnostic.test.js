@@ -4,6 +4,7 @@ const test = require("node:test");
 const {
   runJctslNetworkDiagnostic,
   safeHttpsProbe,
+  safeTcpProbe,
 } = require("../jctslNetworkDiagnostic");
 
 function successfulHttpsRequest(options, callback) {
@@ -100,4 +101,130 @@ test("HTTPS probe accepts an HTTP response while retaining SNI, Host, and TLS va
   assert.equal(requestOptions.servername, "www.omnificent.co.in");
   assert.equal(requestOptions.headers.Host, "www.omnificent.co.in");
   assert.equal(requestOptions.rejectUnauthorized, true);
+});
+
+test("TCP connection timeout is bounded, cleans up socket, and omits remoteAddress", async () => {
+  let destroyed = false;
+  let listenersRemoved = false;
+  const result = await safeTcpProbe({
+    host: "www.omnificent.co.in",
+    port: 443,
+    timeoutMs: 15,
+    connect(options) {
+      const socket = new EventEmitter();
+      socket.destroy = () => {
+        destroyed = true;
+      };
+      socket.removeAllListeners = () => {
+        listenersRemoved = true;
+      };
+      return socket;
+    },
+  });
+
+  assert.equal(result.success, false);
+  assert.equal(result.error.code, "ETIMEDOUT");
+  assert.equal(result.remoteAddress, undefined);
+  assert.ok(result.elapsedMs >= 10);
+  assert.equal(destroyed, true);
+  assert.equal(listenersRemoved, true);
+});
+
+test("TCP connection records success, remoteAddress, and cleans up socket", async () => {
+  let destroyed = false;
+  let listenersRemoved = false;
+  const result = await safeTcpProbe({
+    host: "www.omnificent.co.in",
+    port: 443,
+    timeoutMs: 100,
+    connect(options, callback) {
+      const socket = new EventEmitter();
+      socket.remoteAddress = "115.124.96.183";
+      socket.destroy = () => {
+        destroyed = true;
+      };
+      socket.removeAllListeners = () => {
+        listenersRemoved = true;
+      };
+      setImmediate(() => {
+        if (callback) callback();
+      });
+      return socket;
+    },
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.remoteAddress, "115.124.96.183");
+  assert.equal(result.error, null);
+  assert.equal(destroyed, true);
+  assert.equal(listenersRemoved, true);
+});
+
+test("TCP connection handles error cleanly, sanitizes error code, and cleans up socket", async () => {
+  let destroyed = false;
+  let listenersRemoved = false;
+  const result = await safeTcpProbe({
+    host: "www.omnificent.co.in",
+    port: 443,
+    timeoutMs: 100,
+    connect() {
+      const socket = new EventEmitter();
+      socket.destroy = () => {
+        destroyed = true;
+      };
+      socket.removeAllListeners = () => {
+        listenersRemoved = true;
+      };
+      setImmediate(() => {
+        const error = new Error("Connection refused");
+        error.code = "ECONNREFUSED";
+        socket.emit("error", error);
+      });
+      return socket;
+    },
+  });
+
+  assert.equal(result.success, false);
+  assert.equal(result.error.code, "ECONNREFUSED");
+  assert.equal(result.remoteAddress, undefined);
+  assert.equal(destroyed, true);
+  assert.equal(listenersRemoved, true);
+});
+
+test("runJctslNetworkDiagnostic includes tcpConnectionTest in output", async () => {
+  const result = await runJctslNetworkDiagnostic({
+    baseUrl: "https://www.omnificent.co.in/OMB/",
+    dnsPromises: {
+      lookup: async () => [{ address: "115.124.96.183", family: 4 }],
+      resolve4: async () => ["115.124.96.183"],
+      resolve6: async () => [],
+    },
+    httpsRequest: successfulHttpsRequest,
+    fetchImpl: async () => ({
+      status: 200,
+      statusText: "OK",
+      headers: { get: () => "test-server" },
+    }),
+    netConnect(options, callback) {
+      const socket = new EventEmitter();
+      socket.remoteAddress = "115.124.96.183";
+      socket.destroy = () => {};
+      socket.removeAllListeners = () => {};
+      setImmediate(() => {
+        if (callback) callback();
+      });
+      return socket;
+    },
+    logger: { info: () => {} },
+    dnsTimeoutMs: 50,
+    connectionTimeoutMs: 50,
+    tcpTimeoutMs: 50,
+  });
+
+  assert.ok(result.tcpConnectionTest);
+  assert.equal(result.tcpConnectionTest.success, true);
+  assert.equal(result.tcpConnectionTest.remoteAddress, "115.124.96.183");
+  assert.equal(result.tcpConnectionTest.error, null);
+  assert.ok(result.stages.tcpConnect);
+  assert.equal(result.stages.tcpConnect.success, true);
 });

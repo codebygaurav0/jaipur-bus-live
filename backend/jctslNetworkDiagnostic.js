@@ -1,4 +1,5 @@
 const https = require("https");
+const net = require("net");
 
 function errorCode(error) {
   const code = error?.code || (error?.name === "AbortError" ? "ETIMEDOUT" : "UNKNOWN");
@@ -52,6 +53,118 @@ async function runDiagnosticStage(name, timeoutMs, operation, logger = console) 
     value: result.type === "complete" ? result.value : null,
     error: stageFailure ? { code } : null,
   };
+}
+
+function safeTcpProbe({
+  host,
+  port = 443,
+  timeoutMs = 5000,
+  connect = net.connect,
+  signal,
+}) {
+  const boundedTimeoutMs = Math.min(
+    Math.max(Number(timeoutMs) || 5000, 1),
+    5000
+  );
+  const start = Date.now();
+
+  return new Promise((resolve) => {
+    let settled = false;
+    let timer = null;
+    let socket = null;
+
+    const cleanup = () => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      if (signal && timeoutOnAbort) {
+        signal.removeEventListener("abort", timeoutOnAbort);
+      }
+      if (socket) {
+        try {
+          if (typeof socket.removeAllListeners === "function") {
+            socket.removeAllListeners();
+          }
+          if (typeof socket.destroy === "function") {
+            socket.destroy();
+          }
+        } catch (_) {}
+      }
+    };
+
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve({
+        ...result,
+        elapsedMs: Date.now() - start,
+      });
+    };
+
+    const timeoutError = () => {
+      finish({
+        success: false,
+        error: { code: "ETIMEDOUT" },
+      });
+    };
+
+    const timeoutOnAbort = () => {
+      timeoutError();
+    };
+
+    timer = setTimeout(timeoutError, boundedTimeoutMs);
+    if (signal?.aborted) {
+      timeoutError();
+      return;
+    }
+    signal?.addEventListener("abort", timeoutOnAbort, { once: true });
+
+    try {
+      const onConnect = () => {
+        const remoteAddress = socket?.remoteAddress || null;
+        finish({
+          success: true,
+          ...(remoteAddress ? { remoteAddress } : {}),
+          error: null,
+        });
+      };
+
+      socket = connect({ host, port }, onConnect);
+
+      if (socket && typeof socket.once === "function") {
+        socket.once("connect", onConnect);
+      }
+
+      if (socket && typeof socket.on === "function") {
+        socket.on("timeout", timeoutError);
+        socket.on("error", (error) => {
+          finish({
+            success: false,
+            error: { code: errorCode(error) },
+          });
+        });
+        socket.on("close", () => {
+          if (!settled) {
+            finish({
+              success: false,
+              error: { code: "ECONNRESET" },
+            });
+          }
+        });
+      }
+
+      if (socket && typeof socket.setTimeout === "function") {
+        socket.setTimeout(boundedTimeoutMs);
+      }
+    } catch (error) {
+      finish({
+        success: false,
+        error: { code: errorCode(error) },
+      });
+    }
+  });
 }
 
 function safeHttpsProbe({
@@ -210,18 +323,31 @@ async function runJctslNetworkDiagnostic({
   dnsPromises,
   fetchImpl = fetch,
   httpsRequest = https.request,
+  netConnect = net.connect,
   defaultResultOrder = "unknown",
   logger = console,
   dnsTimeoutMs = 2500,
   connectionTimeoutMs = 6000,
+  tcpTimeoutMs,
 }) {
   const diagnosticStart = Date.now();
   const parsedUrl = new URL(baseUrl);
   const targetHost = parsedUrl.hostname;
+  const targetPort = Number(parsedUrl.port || 443);
   const targetPath = parsedUrl.pathname.endsWith("/")
     ? parsedUrl.pathname
     : `${parsedUrl.pathname}/`;
   const targetHttpsUrl = `${parsedUrl.origin}${targetPath}`;
+
+  const defaultTcpTimeout =
+    connectionTimeoutMs < 5000 ? connectionTimeoutMs : 5000;
+  const boundedTcpTimeoutMs = Math.min(
+    Math.max(
+      Number(tcpTimeoutMs !== undefined ? tcpTimeoutMs : defaultTcpTimeout) || 5000,
+      1
+    ),
+    5000
+  );
 
   const dnsStages = await Promise.all([
     runDiagnosticStage(
@@ -255,7 +381,20 @@ async function runJctslNetworkDiagnostic({
       ?.address ||
     null;
 
-  const httpsStages = await Promise.all([
+  const connectionStages = await Promise.all([
+    runDiagnosticStage(
+      "tcp.connect",
+      boundedTcpTimeoutMs,
+      (signal) =>
+        safeTcpProbe({
+          host: targetHost,
+          port: targetPort,
+          timeoutMs: boundedTcpTimeoutMs,
+          connect: netConnect,
+          signal,
+        }),
+      logger
+    ),
     runDiagnosticStage(
       "https.hostname",
       connectionTimeoutMs,
@@ -322,7 +461,7 @@ async function runJctslNetworkDiagnostic({
     ),
   ]);
 
-  const [hostnameStage, directIpv4Stage, fetchStage] = httpsStages;
+  const [tcpStage, hostnameStage, directIpv4Stage, fetchStage] = connectionStages;
   const fetchResult = fetchStage.value || {
     success: false,
     statusCode: null,
@@ -330,6 +469,13 @@ async function runJctslNetworkDiagnostic({
     serverHeader: null,
     error: fetchStage.error,
   };
+
+  const tcpTestResult =
+    tcpStage.value || {
+      success: false,
+      elapsedMs: tcpStage.elapsedMs,
+      error: tcpStage.error || { code: "UNKNOWN" },
+    };
 
   return {
     status: "ok",
@@ -339,7 +485,7 @@ async function runJctslNetworkDiagnostic({
       host: targetHost,
       path: targetPath,
       url: targetHttpsUrl,
-      port: Number(parsedUrl.port || 443),
+      port: targetPort,
     },
     dns: {
       defaultResultOrder,
@@ -354,6 +500,7 @@ async function runJctslNetworkDiagnostic({
       hasIpv6: resolve6Results.length > 0 ||
         lookupResults.some((result) => result.family === 6 || result.family === "IPv6"),
     },
+    tcpConnectionTest: tcpTestResult,
     httpsConnectionTest: failedProbe(hostnameStage),
     directIpv4SniTest:
       directIpv4Stage.value ||
@@ -376,6 +523,7 @@ async function runJctslNetworkDiagnostic({
       dnsLookup: { success: lookupStage.success, elapsedMs: lookupStage.elapsedMs, error: lookupStage.error },
       dnsResolve4: { success: resolve4Stage.success, elapsedMs: resolve4Stage.elapsedMs, error: resolve4Stage.error },
       dnsResolve6: { success: resolve6Stage.success, elapsedMs: resolve6Stage.elapsedMs, error: resolve6Stage.error },
+      tcpConnect: { success: tcpStage.success, elapsedMs: tcpStage.elapsedMs, error: tcpStage.error },
       httpsHostname: { success: hostnameStage.success, elapsedMs: hostnameStage.elapsedMs, error: hostnameStage.error },
       httpsDirectIpv4Sni: { success: directIpv4Stage.success, elapsedMs: directIpv4Stage.elapsedMs, error: directIpv4Stage.error },
       httpsUndiciFetch: { success: fetchStage.success, elapsedMs: fetchStage.elapsedMs, error: fetchStage.error },
@@ -387,4 +535,5 @@ module.exports = {
   runDiagnosticStage,
   runJctslNetworkDiagnostic,
   safeHttpsProbe,
+  safeTcpProbe,
 };
