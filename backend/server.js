@@ -22,6 +22,7 @@ const PORT = process.env.PORT || 11000;
 const JCTSL_BASE_URL =
   process.env.JCTSL_BASE_URL ||
   "https://www.omnificent.co.in/OMB/";
+const JCTSL_HOST = "www.omnificent.co.in";
 
 const SESSION_FILE = path.join(__dirname, ".session.json");
 
@@ -383,6 +384,88 @@ function getAuthHeaders(req) {
   };
 }
 
+function requestJctslOverIpv4({ url, method, headers, body, timeoutMs }) {
+  const parsedUrl = new URL(url);
+
+  return new Promise((resolve, reject) => {
+    let request = null;
+    let settled = false;
+
+    const finish = (error, response) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) {
+        reject(error);
+      } else {
+        resolve(response);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      const timeoutError = new Error(
+        `Upstream request to ${url} timed out after ${timeoutMs}ms`
+      );
+      timeoutError.name = "AbortError";
+      timeoutError.code = "ETIMEDOUT";
+      if (request) request.destroy(timeoutError);
+      finish(timeoutError);
+    }, timeoutMs);
+
+    dns.promises
+      .resolve4(JCTSL_HOST)
+      .then((addresses) => {
+        if (settled) return;
+        if (addresses.length === 0) {
+          const dnsError = new Error(`No IPv4 addresses found for ${JCTSL_HOST}`);
+          dnsError.code = "ENODATA";
+          throw dnsError;
+        }
+
+        request = https.request(
+          {
+            hostname: addresses[0],
+            port: parsedUrl.port || 443,
+            path: `${parsedUrl.pathname}${parsedUrl.search}`,
+            method,
+            servername: JCTSL_HOST,
+            headers: {
+              ...headers,
+              Host: JCTSL_HOST,
+            },
+          },
+          (response) => {
+            const chunks = [];
+            response.on("data", (chunk) => chunks.push(chunk));
+            response.on("error", (error) => finish(error));
+            response.on("end", () => {
+              const responseHeaders = new Headers();
+              for (const [name, value] of Object.entries(response.headers)) {
+                if (Array.isArray(value)) {
+                  for (const item of value) responseHeaders.append(name, item);
+                } else if (value !== undefined) {
+                  responseHeaders.append(name, value);
+                }
+              }
+
+              const status = response.statusCode || 0;
+              finish(null, {
+                ok: status >= 200 && status < 300,
+                status,
+                headers: responseHeaders,
+                text: async () => Buffer.concat(chunks).toString("utf8"),
+              });
+            });
+          }
+        );
+
+        request.on("error", (error) => finish(error));
+        request.end(body);
+      })
+      .catch((error) => finish(error));
+  });
+}
+
 /*
 |--------------------------------------------------------------------------
 | RESILIENT UPSTREAM JCTSL FETCH CLIENT
@@ -432,12 +515,28 @@ async function jctslFetch(endpoint, {
   };
 
   try {
-    const response = await fetch(url, {
-      method,
-      headers: mergedHeaders,
-      body: body ? (typeof body === "string" ? body : JSON.stringify(body)) : undefined,
-      signal: controller.signal,
-    });
+    const requestBody = body
+      ? typeof body === "string"
+        ? body
+        : JSON.stringify(body)
+      : undefined;
+    const parsedUrl = new URL(url);
+    const response =
+      parsedUrl.protocol === "https:" &&
+      parsedUrl.hostname.toLowerCase() === JCTSL_HOST
+        ? await requestJctslOverIpv4({
+            url,
+            method,
+            headers: mergedHeaders,
+            body: requestBody,
+            timeoutMs,
+          })
+        : await fetch(url, {
+            method,
+            headers: mergedHeaders,
+            body: requestBody,
+            signal: controller.signal,
+          });
 
     const rawText = await response.text();
     const contentType = response.headers.get("content-type") || "unknown";
