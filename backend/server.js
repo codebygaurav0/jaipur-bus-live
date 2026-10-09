@@ -21,10 +21,9 @@ app.use(express.json());
 const PORT = process.env.PORT || 11000;
 const JCTSL_DIAGNOSTIC_MODE = process.env.JCTSL_DIAGNOSTIC_MODE === "true";
 
-const JCTSL_BASE_URL =
-  process.env.JCTSL_BASE_URL ||
-  "https://www.omnificent.co.in/OMB/";
-const JCTSL_HOST = "www.omnificent.co.in";
+const rawBaseUrl = (process.env.JCTSL_BASE_URL || "https://www.omnificent.co.in/OMB/").trim();
+const JCTSL_BASE_URL = rawBaseUrl.endsWith("/") ? rawBaseUrl : `${rawBaseUrl}/`;
+const JCTSL_HOST = new URL(JCTSL_BASE_URL).hostname;
 
 const SESSION_FILE = path.join(__dirname, ".session.json");
 
@@ -44,7 +43,7 @@ try {
     const parsed = JSON.parse(raw);
     if (parsed && parsed.authToken && parsed.userId) {
       activeSession = parsed;
-      console.log(`Loaded persisted JCTSL session for user ${activeSession.mobile || activeSession.userId}`);
+      console.log("Loaded persisted JCTSL session (authenticated)");
     }
   }
 } catch (err) {
@@ -81,7 +80,7 @@ function saveSession(session) {
 }
 
 // Cleanup expired pending auth entries older than 10 minutes
-setInterval(() => {
+const authCleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [mobile, data] of pendingAuthMap.entries()) {
     if (now - data.timestamp > 10 * 60 * 1000) {
@@ -89,6 +88,7 @@ setInterval(() => {
     }
   }
 }, 60 * 1000);
+if (authCleanupTimer?.unref) authCleanupTimer.unref();
 
 /*
 |--------------------------------------------------------------------------
@@ -103,12 +103,46 @@ app.get("/", (req, res) => {
   });
 });
 
+/*
+ * Upstream connectivity state — updated by pollJctslTelemetry and handleLiveBuses.
+ * Never exposes auth tokens, user IDs, or session secrets.
+ */
+const upstreamState = {
+  reachable: null,       // null = unknown (never tested), true/false after first poll
+  lastSuccessAt: null,   // ISO timestamp of last successful upstream response
+  lastFailureAt: null,   // ISO timestamp of last failed upstream attempt
+  lastErrorCode: null,   // sanitized error code from last failure
+  consecutiveFailures: 0,
+};
+
+function updateUpstreamSuccess() {
+  upstreamState.reachable = true;
+  upstreamState.lastSuccessAt = new Date().toISOString();
+  upstreamState.consecutiveFailures = 0;
+  upstreamState.lastErrorCode = null;
+}
+
+function updateUpstreamFailure(errorCode) {
+  const safe = /^[A-Z0-9_:-]{1,64}$/i.test(errorCode || "") ? errorCode : "UNKNOWN";
+  upstreamState.reachable = false;
+  upstreamState.lastFailureAt = new Date().toISOString();
+  upstreamState.lastErrorCode = safe;
+  upstreamState.consecutiveFailures++;
+}
+
 app.get("/api/health", (req, res) => {
   res.json({
     success: true,
     message: "JBL backend is working",
     hasActiveSession: !!activeSession,
-    sessionUser: activeSession?.user || null,
+    upstream: {
+      reachable: upstreamState.reachable,
+      lastSuccessAt: upstreamState.lastSuccessAt,
+      lastFailureAt: upstreamState.lastFailureAt,
+      lastErrorCode: upstreamState.lastErrorCode,
+      consecutiveFailures: upstreamState.consecutiveFailures,
+    },
+    telemetryCacheSize: telemetryEngine.vehicleStore.size,
   });
 });
 
@@ -261,52 +295,27 @@ function requestJctslOverIpv4({ url, method, headers, body, timeoutMs }) {
 | - Mobile client headers (User-Agent: okhttp/4.9.0, Accept: application/json)
 | - Safe non-JSON response handling (never throws SyntaxError on HTML/PHP notices)
 | - Error cause/code preservation for immediate diagnostic insight
+| - Single controlled retry for transient network errors (ETIMEDOUT, ECONNRESET)
+| - Never retries on auth (401/403) or client errors
 |--------------------------------------------------------------------------
 */
-async function jctslFetch(endpoint, {
-  method = "POST",
-  headers = {},
-  body = null,
-  timeoutMs = 12000,
-  context = "general",
-} = {}) {
-  const url = endpoint.startsWith("http")
-    ? endpoint
-    : `${JCTSL_BASE_URL}${endpoint.replace(/^\//, "")}`;
 
-  const hasAuthToken = Boolean(headers?.["Auth-token"]);
-  const hasUserId = Boolean(headers?.["User-ID"]);
+// Transient network error codes eligible for a single retry
+const TRANSIENT_ERROR_CODES = new Set([
+  "ETIMEDOUT", "ECONNRESET", "ECONNREFUSED", "ECONNABORTED",
+  "EPIPE", "EHOSTUNREACH", "ENETUNREACH", "EAI_AGAIN",
+  "UND_ERR_CONNECT_TIMEOUT", "FETCH_ERROR",
+]);
 
-  let orgId = null;
-  if (body) {
-    try {
-      const parsed = typeof body === "string" ? JSON.parse(body) : body;
-      orgId = parsed.org_id || parsed.city_id || parsed.route_id || parsed.route_no || null;
-    } catch (_) {}
-  }
+let requestCounter = 0;
 
-  // Safe outbound logging (NEVER print token, user ID, or sensitive body fields)
-  console.log(
-    `[JCTSL Upstream Request] context=${context} | method=${method} | url=${url} | org_id=${orgId ?? "N/A"} | hasAuthToken=${hasAuthToken} | hasUserId=${hasUserId}`
-  );
-
+async function jctslFetchOnce(url, { method, mergedHeaders, requestBody, timeoutMs, context, requestId }) {
   const controller = new AbortController();
   const timer = setTimeout(() => {
     controller.abort(new Error(`Upstream request to ${url} timed out after ${timeoutMs}ms`));
   }, timeoutMs);
 
-  const mergedHeaders = {
-    "User-Agent": "okhttp/4.9.0",
-    "Accept": "application/json",
-    ...headers,
-  };
-
   try {
-    const requestBody = body
-      ? typeof body === "string"
-        ? body
-        : JSON.stringify(body)
-      : undefined;
     const parsedUrl = new URL(url);
     const response =
       parsedUrl.protocol === "https:" &&
@@ -330,7 +339,7 @@ async function jctslFetch(endpoint, {
 
     // Safe response logging (Zero credentials logged)
     console.log(
-      `[JCTSL Upstream Response] context=${context} | status=${response.status} | contentType=${contentType} | bodyLength=${rawText.length} | url=${url}`
+      `[JCTSL Upstream Response] requestId=${requestId} | context=${context} | status=${response.status} | contentType=${contentType} | bodyLength=${rawText.length}`
     );
 
     let jsonData = null;
@@ -340,7 +349,7 @@ async function jctslFetch(endpoint, {
       isJson = true;
     } catch (parseErr) {
       console.warn(
-        `[JCTSL Upstream Non-JSON] context=${context} | status=${response.status} | contentType=${contentType} | preview=${rawText.slice(0, 160).replace(/\s+/g, " ")}`
+        `[JCTSL Upstream Non-JSON] requestId=${requestId} | context=${context} | status=${response.status} | contentType=${contentType} | preview=${rawText.slice(0, 160).replace(/\s+/g, " ")}`
       );
     }
 
@@ -353,24 +362,99 @@ async function jctslFetch(endpoint, {
       isJson,
       data: jsonData,
     };
-  } catch (err) {
-    const cause = err.cause || {};
-    const errorCode = cause.code || err.code || (err.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
-    const causeMsg = cause.message || err.message || "Unknown fetch error";
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function jctslFetch(endpoint, {
+  method = "POST",
+  headers = {},
+  body = null,
+  timeoutMs = 12000,
+  context = "general",
+  retry = true,
+} = {}) {
+  const cleanEndpoint = endpoint.replace(/^\/+/, "");
+  const url = endpoint.startsWith("http")
+    ? endpoint
+    : `${JCTSL_BASE_URL}${cleanEndpoint}`;
+
+  const requestId = `jbl-${++requestCounter}-${Date.now().toString(36)}`;
+  const hasAuthToken = Boolean(headers?.["Auth-token"]);
+  const hasUserId = Boolean(headers?.["User-ID"]);
+
+  let orgId = null;
+  if (body) {
+    try {
+      const parsed = typeof body === "string" ? JSON.parse(body) : body;
+      orgId = parsed.org_id || parsed.city_id || parsed.route_id || parsed.route_no || null;
+    } catch (_) {}
+  }
+
+  const requestBody = body
+    ? typeof body === "string"
+      ? body
+      : JSON.stringify(body)
+    : undefined;
+
+  const mergedHeaders = {
+    "User-Agent": "okhttp/4.9.0",
+    "Accept": "application/json",
+    ...headers,
+  };
+
+  // Safe outbound logging (NEVER print token, user ID, or sensitive body fields)
+  console.log(
+    `[JCTSL Upstream Request] requestId=${requestId} | context=${context} | method=${method} | url=${url} | org_id=${orgId ?? "N/A"} | hasAuthToken=${hasAuthToken} | hasUserId=${hasUserId}`
+  );
+
+  const fetchArgs = { method, mergedHeaders, requestBody, timeoutMs, context, requestId };
+
+  try {
+    return await jctslFetchOnce(url, fetchArgs);
+  } catch (firstErr) {
+    const cause = firstErr.cause || {};
+    const errorCode = cause.code || firstErr.code || (firstErr.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
+
+    // Only retry once for transient network errors, never for auth/logic errors
+    if (retry && TRANSIENT_ERROR_CODES.has(errorCode)) {
+      console.warn(
+        `[JCTSL Retry] requestId=${requestId} | context=${context} | code=${errorCode} | retrying once after 1500ms`
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      try {
+        return await jctslFetchOnce(url, { ...fetchArgs, requestId: `${requestId}-r1` });
+      } catch (retryErr) {
+        const retryCode = retryErr.cause?.code || retryErr.code || (retryErr.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
+        console.error(
+          `[JCTSL Retry Failed] requestId=${requestId}-r1 | context=${context} | code=${retryCode}`
+        );
+        // Fall through to throw the retry error
+        const wrappedError = new Error(retryErr.message || "Fetch failed after retry");
+        wrappedError.name = retryErr.name;
+        wrappedError.code = retryCode;
+        wrappedError.cause = retryErr.cause || {};
+        wrappedError.url = url;
+        wrappedError.context = context;
+        wrappedError.requestId = `${requestId}-r1`;
+        throw wrappedError;
+      }
+    }
 
     console.error(
-      `[JCTSL Fetch Error] context=${context} | url=${url} | name=${err.name} | message=${err.message} | code=${errorCode} | causeName=${cause.name || "N/A"} | causeMessage=${causeMsg}`
+      `[JCTSL Fetch Error] requestId=${requestId} | context=${context} | url=${url} | name=${firstErr.name} | code=${errorCode}`
     );
 
-    const wrappedError = new Error(err.message || "Fetch failed");
-    wrappedError.name = err.name;
+    const wrappedError = new Error(firstErr.message || "Fetch failed");
+    wrappedError.name = firstErr.name;
     wrappedError.code = errorCode;
     wrappedError.cause = cause;
     wrappedError.url = url;
     wrappedError.context = context;
+    wrappedError.requestId = requestId;
     throw wrappedError;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
@@ -1224,13 +1308,31 @@ const handleLiveBuses = async (req, res) => {
     });
 
     if (!upstream.isJson || !upstream.data) {
-      console.warn("[Live Buses] Upstream returned non-JSON. Serving cached telemetry.");
-      return res.json({
-        respCode: "0",
-        respMessage: "Upstream JCTSL service returned non-JSON response",
+      updateUpstreamFailure("NON_JSON_RESPONSE");
+      console.warn("[Live Buses] Upstream returned non-JSON. Checking telemetry cache.");
+      const cachedVehicles = telemetryEngine.getLiveVehicles();
+      const summary = telemetryEngine.getSummary();
+      const hasRealCache = Array.isArray(cachedVehicles) && cachedVehicles.length > 0 && summary.lastUpdated !== null;
+
+      if (hasRealCache) {
+        return res.json({
+          respCode: "200",
+          respMessage: "Upstream JCTSL returned non-JSON response; serving cached telemetry",
+          upstreamStatus: upstream.status,
+          upstreamReachable: false,
+          isCached: true,
+          cacheTimestamp: summary.lastUpdated,
+          summary,
+          respData: cachedVehicles,
+        });
+      }
+
+      return res.status(503).json({
+        success: false,
+        message: "JCTSL upstream service returned non-JSON response and no cached telemetry exists",
+        errorCode: "UPSTREAM_UNAVAILABLE",
         upstreamStatus: upstream.status,
-        summary: telemetryEngine.getSummary(),
-        respData: telemetryEngine.getLiveVehicles(),
+        upstreamReachable: false,
       });
     }
 
@@ -1242,29 +1344,53 @@ const handleLiveBuses = async (req, res) => {
       : [];
 
     const { summary, vehicles } = telemetryEngine.processTelemetry(rawVehicles);
+    updateUpstreamSuccess();
 
     return res.status(upstream.status).json({
       respCode: data?.respCode || "200",
       respMessage: data?.respMessage || "Success",
+      upstreamReachable: true,
+      isCached: false,
       summary,
       respData: vehicles,
     });
   } catch (error) {
     const cause = error.cause || {};
     const errorCode = error.code || cause.code || (error.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
-    console.error(`[Live Buses Error] ${error.name}: ${error.message} (code: ${errorCode}, cause: ${cause.message || "N/A"})`);
+    const requestId = error.requestId || null;
+    updateUpstreamFailure(errorCode);
 
-    return res.status(500).json({
+    console.error(`[Live Buses Error] ${error.name}: ${error.message} (code: ${errorCode}, requestId: ${requestId || "N/A"})`);
+
+    const cachedVehicles = telemetryEngine.getLiveVehicles();
+    const summary = telemetryEngine.getSummary();
+    const hasRealCache = Array.isArray(cachedVehicles) && cachedVehicles.length > 0 && summary.lastUpdated !== null;
+
+    if (hasRealCache) {
+      return res.json({
+        respCode: "200",
+        respMessage: "JCTSL upstream unreachable; serving cached real telemetry",
+        upstreamReachable: false,
+        isCached: true,
+        cacheTimestamp: summary.lastUpdated,
+        errorCode,
+        requestId,
+        summary,
+        respData: cachedVehicles,
+      });
+    }
+
+    return res.status(503).json({
       success: false,
-      message: "Unable to fetch live buses from JCTSL upstream",
-      error: error.message,
+      message: "JCTSL upstream service currently unreachable and no cached telemetry exists",
       errorCode,
+      requestId,
       errorDetails: {
         name: error.name,
         code: errorCode,
-        causeMessage: cause.message || null,
         url: error.url || "allvehloc",
       },
+      upstreamReachable: false,
     });
   }
 };
@@ -1293,7 +1419,10 @@ async function pollJctslTelemetry() {
       timeoutMs: 12000,
     });
 
-    if (!upstream.isJson || !upstream.data) return;
+    if (!upstream.isJson || !upstream.data) {
+      updateUpstreamFailure("NON_JSON_RESPONSE");
+      return;
+    }
 
     const data = upstream.data;
     const rawVehicles = Array.isArray(data?.respData)
@@ -1305,15 +1434,19 @@ async function pollJctslTelemetry() {
     if (rawVehicles.length > 0) {
       telemetryEngine.processTelemetry(rawVehicles);
     }
+    updateUpstreamSuccess();
   } catch (err) {
-    // Keep background poll quiet while logging minimal failure
+    const errorCode = err.code || (err.name === "AbortError" ? "ETIMEDOUT" : "POLL_ERROR");
+    updateUpstreamFailure(errorCode);
+    console.warn(`[Background Poller] poll failed (code: ${errorCode}, requestId: ${err.requestId || "N/A"})`);
   }
 }
 
-if (!JCTSL_DIAGNOSTIC_MODE) {
-  setInterval(pollJctslTelemetry, 25000);
+if (require.main === module && !JCTSL_DIAGNOSTIC_MODE) {
+  const pollTimer = setInterval(pollJctslTelemetry, 25000);
+  if (pollTimer?.unref) pollTimer.unref();
   setTimeout(pollJctslTelemetry, 1500);
-} else {
+} else if (JCTSL_DIAGNOSTIC_MODE) {
   console.log("[JCTSL Diagnostic] Background polling and route warming disabled");
 }
 
@@ -1960,9 +2093,22 @@ async function warmRouteMaps() {
 const metroRouter = require("./metro/metroRoutes");
 app.use("/api/metro", metroRouter);
 
-app.listen(PORT, () => {
-  console.log(`JBL Backend running on http://localhost:${PORT}`);
-  if (!JCTSL_DIAGNOSTIC_MODE) {
-    setTimeout(warmRouteMaps, 1000);
-  }
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`JBL Backend running on http://localhost:${PORT}`);
+    if (!JCTSL_DIAGNOSTIC_MODE) {
+      setTimeout(warmRouteMaps, 1000);
+    }
+  });
+}
+
+module.exports = {
+  app,
+  jctslFetch,
+  upstreamState,
+  updateUpstreamSuccess,
+  updateUpstreamFailure,
+  TRANSIENT_ERROR_CODES,
+  JCTSL_BASE_URL,
+  JCTSL_HOST,
+};
