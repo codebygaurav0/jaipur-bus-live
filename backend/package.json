@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node -c server.js"
+    "test": "node --test && node -c server.js && node -c jctslNetworkDiagnostic.js"
   },
   "keywords": [],
   "author": "",

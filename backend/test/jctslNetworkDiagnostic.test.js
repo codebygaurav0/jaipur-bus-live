@@ -1,0 +1,103 @@
+const assert = require("node:assert/strict");
+const { EventEmitter } = require("node:events");
+const test = require("node:test");
+const {
+  runJctslNetworkDiagnostic,
+  safeHttpsProbe,
+} = require("../jctslNetworkDiagnostic");
+
+function successfulHttpsRequest(options, callback) {
+  const request = new EventEmitter();
+  request.end = () => {
+    const response = new EventEmitter();
+    response.statusCode = 200;
+    response.statusMessage = "OK";
+    response.headers = { server: "test-server", "content-type": "text/html" };
+    response.socket = {
+      remoteAddress: "192.0.2.1",
+      remoteFamily: "IPv4",
+      authorized: true,
+      getProtocol: () => "TLSv1.3",
+      getCipher: () => ({ name: "TEST-CIPHER" }),
+      getPeerCertificate: () => ({ subject: { CN: "test.example" } }),
+    };
+    response.resume = () => {};
+    callback(response);
+  };
+  request.destroy = (error) => request.emit("error", error);
+  request.options = options;
+  return request;
+}
+
+test("DNS timeouts do not prevent the other diagnostic stages from completing", async () => {
+  const messages = [];
+  const logger = { info: (message) => messages.push(message) };
+  const result = await runJctslNetworkDiagnostic({
+    baseUrl: "https://www.omnificent.co.in/OMB/",
+    dnsPromises: {
+      lookup: () => new Promise(() => {}),
+      resolve4: () => new Promise(() => {}),
+      resolve6: async () => ["2001:db8::1"],
+    },
+    httpsRequest: successfulHttpsRequest,
+    fetchImpl: async () => ({
+      status: 200,
+      statusText: "OK",
+      headers: { get: () => "test-server" },
+    }),
+    logger,
+    dnsTimeoutMs: 15,
+    connectionTimeoutMs: 100,
+  });
+
+  assert.equal(result.dns.lookupError.code, "ETIMEDOUT");
+  assert.equal(result.dns.resolve4Error.code, "ETIMEDOUT");
+  assert.equal(result.stages.dnsLookup.success, false);
+  assert.equal(result.stages.httpsHostname.success, true);
+  assert.equal(result.httpsConnectionTest.statusCode, 200);
+  assert.equal(result.undiciFetchTest.statusCode, 200);
+  assert.ok(messages.some((message) => message.includes("stage=dns.lookup event=start")));
+  assert.ok(messages.some((message) => message.includes("stage=dns.lookup event=complete")));
+});
+
+test("direct HTTPS connection timeout is bounded and sanitized", async () => {
+  const result = await safeHttpsProbe({
+    host: "www.omnificent.co.in",
+    ip: "192.0.2.10",
+    servername: "www.omnificent.co.in",
+    timeoutMs: 15,
+    request(options) {
+      const request = new EventEmitter();
+      request.end = () => {};
+      request.destroy = (error) => request.emit("error", error);
+      request.options = options;
+      return request;
+    },
+  });
+
+  assert.equal(result.success, false);
+  assert.equal(result.error.code, "ETIMEDOUT");
+  assert.equal(result.error.message, undefined);
+});
+
+test("HTTPS probe accepts an HTTP response while retaining SNI, Host, and TLS validation", async () => {
+  let requestOptions;
+  const result = await safeHttpsProbe({
+    host: "www.omnificent.co.in",
+    ip: "192.0.2.10",
+    servername: "www.omnificent.co.in",
+    path: "/OMB/allvehloc",
+    request(options, callback) {
+      requestOptions = options;
+      return successfulHttpsRequest(options, callback);
+    },
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.tlsAuthorized, true);
+  assert.equal(requestOptions.hostname, "192.0.2.10");
+  assert.equal(requestOptions.servername, "www.omnificent.co.in");
+  assert.equal(requestOptions.headers.Host, "www.omnificent.co.in");
+  assert.equal(requestOptions.rejectUnauthorized, true);
+});
