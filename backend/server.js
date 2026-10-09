@@ -2093,6 +2093,60 @@ async function warmRouteMaps() {
 const metroRouter = require("./metro/metroRoutes");
 app.use("/api/metro", metroRouter);
 
+
+// TEMPORARY OUTBOUND HTTPS DIAGNOSTIC - remove after testing
+const diagnosticCrypto = require("node:crypto");
+
+app.get("/api/test-outbound", async (req, res) => {
+  const expected = process.env.DIAGNOSTIC_SECRET || "";
+  const provided = req.get("x-diagnostic-secret") || "";
+  const a = Buffer.from(expected, "utf8");
+  const b = Buffer.from(provided, "utf8");
+
+  if (!expected || !provided || a.length !== b.length ||
+      !diagnosticCrypto.timingSafeEqual(a, b)) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  async function testHttps(url) {
+    const started = Date.now();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 7000);
+
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: { Accept: "application/json" }
+      });
+      return {
+        success: true,
+        statusCode: response.status,
+        elapsedMs: Date.now() - started
+      };
+    } catch (error) {
+      return {
+        success: false,
+        errorCode: error.cause?.code || error.code || error.name,
+        elapsedMs: Date.now() - started
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  const [publicHttps, jctslHttps] = await Promise.all([
+    testHttps("https://jsonplaceholder.typicode.com/todos/1"),
+    testHttps("https://www.omnificent.co.in/OMB/")
+  ]);
+
+  res.set("Cache-Control", "no-store");
+  return res.json({
+    timestamp: new Date().toISOString(),
+    publicHttps,
+    jctslHttps
+  });
+});
+
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`JBL Backend running on http://localhost:${PORT}`);
