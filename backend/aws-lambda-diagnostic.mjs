@@ -1,5 +1,22 @@
-const https = require("https");
-const net = require("net");
+/**
+ * Jaipur Bus Live — Standalone AWS Lambda Network Diagnostic Handler
+ * Region: Asia Pacific (Mumbai) ap-south-1
+ * 
+ * Self-contained: Zero external dependencies, pure Node.js 18+/20+/22+ standard library.
+ * Can be copy-pasted directly into the AWS Lambda web console in ap-south-1.
+ * 
+ * Tests:
+ * 1. DNS resolve4 & resolve6
+ * 2. TCP connect to 115.124.96.183:443 (bounded 5s timeout)
+ * 3. TLS SNI handshake to www.omnificent.co.in (preserves rejectUnauthorized: true)
+ * 4. HTTPS GET /OMB/
+ * 
+ * Never logs or returns tokens, cookies, or credentials.
+ */
+
+import https from "node:https";
+import net from "node:net";
+import dns from "node:dns";
 
 function errorCode(error) {
   const code = error?.code || (error?.name === "AbortError" ? "ETIMEDOUT" : "UNKNOWN");
@@ -9,7 +26,7 @@ function errorCode(error) {
 async function runDiagnosticStage(name, timeoutMs, operation, logger = console) {
   const start = Date.now();
   const controller = new AbortController();
-  logger.info(`[JCTSL Diagnostic] stage=${name} event=start`);
+  logger.info?.(`[JCTSL Diagnostic] stage=${name} event=start`);
 
   let timeout;
   const operationResult = Promise.resolve()
@@ -43,7 +60,7 @@ async function runDiagnosticStage(name, timeoutMs, operation, logger = console) 
       ? errorCode(result.value.error)
       : null;
 
-  logger.info(
+  logger.info?.(
     `[JCTSL Diagnostic] stage=${name} event=complete elapsedMs=${elapsedMs} status=${success ? "success" : "error"}${code ? ` code=${code}` : ""}`
   );
 
@@ -474,21 +491,16 @@ function failedProbe(stage) {
   );
 }
 
-async function runJctslNetworkDiagnostic({
-  baseUrl,
-  dnsPromises,
-  fetchImpl = fetch,
-  httpsRequest = https.request,
-  netConnect = net.connect,
-  defaultResultOrder = "unknown",
+export async function runJctslNetworkDiagnostic({
+  baseUrl = "https://www.omnificent.co.in/OMB/",
   logger = console,
   dnsTimeoutMs = 2500,
   connectionTimeoutMs = 6000,
-  tcpTimeoutMs,
+  tcpTimeoutMs = 5000,
   authToken = null,
   userId = null,
   testAuthorizedApi = false,
-}) {
+} = {}) {
   const diagnosticStart = Date.now();
   const parsedUrl = new URL(baseUrl);
   const targetHost = parsedUrl.hostname;
@@ -512,19 +524,19 @@ async function runJctslNetworkDiagnostic({
     runDiagnosticStage(
       "dns.lookup",
       dnsTimeoutMs,
-      () => dnsPromises.lookup(targetHost, { all: true }),
+      () => dns.promises.lookup(targetHost, { all: true }),
       logger
     ),
     runDiagnosticStage(
       "dns.resolve4",
       dnsTimeoutMs,
-      () => dnsPromises.resolve4(targetHost),
+      () => dns.promises.resolve4(targetHost),
       logger
     ),
     runDiagnosticStage(
       "dns.resolve6",
       dnsTimeoutMs,
-      () => dnsPromises.resolve6(targetHost),
+      () => dns.promises.resolve6(targetHost),
       logger
     ),
   ]);
@@ -549,7 +561,6 @@ async function runJctslNetworkDiagnostic({
           host: targetHost,
           port: targetPort,
           timeoutMs: boundedTcpTimeoutMs,
-          connect: netConnect,
           signal,
         }),
       logger
@@ -562,7 +573,6 @@ async function runJctslNetworkDiagnostic({
           host: targetHost,
           path: targetPath,
           timeoutMs: connectionTimeoutMs,
-          request: httpsRequest,
           signal,
         }),
       logger
@@ -578,7 +588,6 @@ async function runJctslNetworkDiagnostic({
               servername: targetHost,
               path: targetPath,
               timeoutMs: connectionTimeoutMs,
-              request: httpsRequest,
               signal,
             }).then((probe) => ({
               tested: true,
@@ -597,10 +606,10 @@ async function runJctslNetworkDiagnostic({
       logger
     ),
     runDiagnosticStage(
-      "https.undiciFetch",
+      "https.fetch",
       connectionTimeoutMs,
       async (signal) => {
-        const response = await fetchImpl(targetHttpsUrl, {
+        const response = await fetch(targetHttpsUrl, {
           method: "GET",
           headers: {
             "User-Agent": "okhttp/4.9.0",
@@ -671,7 +680,6 @@ async function runJctslNetworkDiagnostic({
             authToken,
             userId,
             timeoutMs: connectionTimeoutMs,
-            request: httpsRequest,
             signal,
           }),
         logger
@@ -700,7 +708,6 @@ async function runJctslNetworkDiagnostic({
       port: targetPort,
     },
     dns: {
-      defaultResultOrder,
       lookup: lookupResults,
       lookupError: lookupStage.error,
       resolve4: resolve4Results,
@@ -726,7 +733,7 @@ async function runJctslNetworkDiagnostic({
             ...failedProbe(directIpv4Stage),
           }
         : failedProbe(directIpv4Stage)),
-    undiciFetchTest: {
+    fetchTest: {
       ...fetchResult,
       elapsedMs: fetchStage.elapsedMs,
       error: fetchResult.error || fetchStage.error,
@@ -753,52 +760,34 @@ async function runJctslNetworkDiagnostic({
   };
 }
 
-module.exports = {
-  runDiagnosticStage,
-  runJctslNetworkDiagnostic,
-  safeHttpsProbe,
-  safeTcpProbe,
-  safeAuthorizedApiProbe,
-};
+// AWS Lambda entrypoint handler
+export const handler = async (event = {}) => {
+  try {
+    const wantsApiTest = Boolean(event?.testApi || process.env.JCTSL_AUTH_TOKEN);
+    const authToken = event?.authToken || process.env.JCTSL_AUTH_TOKEN || null;
+    const userId = event?.userId || process.env.JCTSL_USER_ID || null;
 
-if (require.main === module) {
-  const dns = require("dns");
-  const baseUrl = process.env.JCTSL_BASE_URL || "https://www.omnificent.co.in/OMB/";
-  const wantsApiTest = process.argv.includes("--api");
-  let authToken = process.env.JCTSL_AUTH_TOKEN || null;
-  let userId = process.env.JCTSL_USER_ID || null;
-  if (wantsApiTest && (!authToken || !userId)) {
-    const fs = require("fs");
-    const path = require("path");
-    const sessionPath = path.join(__dirname, ".session.json");
-    if (fs.existsSync(sessionPath)) {
-      try {
-        const s = JSON.parse(fs.readFileSync(sessionPath, "utf8"));
-        if (s.authToken && s.userId) {
-          authToken = s.authToken;
-          userId = s.userId;
-        }
-      } catch (_) {}
-    }
-  }
-
-  runJctslNetworkDiagnostic({
-    baseUrl,
-    dnsPromises: dns.promises,
-    defaultResultOrder:
-      typeof dns.getDefaultResultOrder === "function"
-        ? dns.getDefaultResultOrder()
-        : "unknown",
-    testAuthorizedApi: wantsApiTest,
-    authToken,
-    userId,
-  })
-    .then((res) => {
-      console.log(JSON.stringify(res, null, 2));
-      process.exit(res.tcpConnectionTest?.success ? 0 : 1);
-    })
-    .catch((err) => {
-      console.error("Diagnostic execution failed:", err);
-      process.exit(1);
+    const result = await runJctslNetworkDiagnostic({
+      testAuthorizedApi: wantsApiTest,
+      authToken,
+      userId,
     });
-}
+    return {
+      statusCode: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+      },
+      body: JSON.stringify(result, null, 2),
+    };
+  } catch (err) {
+    return {
+      statusCode: 500,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        error: "AWS Lambda diagnostic execution failed",
+        code: errorCode(err),
+      }),
+    };
+  }
+};

@@ -5,6 +5,7 @@ const {
   runJctslNetworkDiagnostic,
   safeHttpsProbe,
   safeTcpProbe,
+  safeAuthorizedApiProbe,
 } = require("../jctslNetworkDiagnostic");
 
 function successfulHttpsRequest(options, callback) {
@@ -227,4 +228,91 @@ test("runJctslNetworkDiagnostic includes tcpConnectionTest in output", async () 
   assert.equal(result.tcpConnectionTest.error, null);
   assert.ok(result.stages.tcpConnect);
   assert.equal(result.stages.tcpConnect.success, true);
+});
+
+test("safeAuthorizedApiProbe successfully performs authorized POST and extracts bus count without leaking tokens", async () => {
+  let capturedOptions;
+  let writtenBody;
+  const mockToken = "SECRET_AUTH_TOKEN_TEST_999";
+  const mockUserId = "98765";
+
+  const result = await safeAuthorizedApiProbe({
+    host: "www.omnificent.co.in",
+    ip: "115.124.96.183",
+    servername: "www.omnificent.co.in",
+    authToken: mockToken,
+    userId: mockUserId,
+    timeoutMs: 500,
+    request(options, callback) {
+      capturedOptions = options;
+      const req = new EventEmitter();
+      req.write = (chunk) => { writtenBody = chunk; };
+      req.end = () => {
+        const res = new EventEmitter();
+        res.statusCode = 200;
+        setImmediate(() => {
+          res.emit("data", Buffer.from(JSON.stringify({
+            respCode: 200,
+            respMessage: "Success",
+            respData: [{ vehId: "RJ14-1" }, { vehId: "RJ14-2" }, { vehId: "RJ14-3" }, { vehId: "RJ14-4" }],
+          })));
+          res.emit("end");
+        });
+        callback(res);
+      };
+      req.destroy = (err) => req.emit("error", err);
+      return req;
+    },
+  });
+
+  assert.equal(result.tested, true);
+  assert.equal(result.success, true);
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.busCount, 4);
+  assert.equal(result.hasAuthToken, true);
+  assert.equal(result.hasUserId, true);
+  assert.equal(capturedOptions.headers["Auth-token"], mockToken);
+  assert.equal(capturedOptions.headers["User-ID"], mockUserId);
+  assert.equal(capturedOptions.rejectUnauthorized, true);
+
+  // Strict token sanitization check
+  const serialized = JSON.stringify(result);
+  assert.equal(serialized.includes(mockToken), false, "Token must never be present in diagnostic output");
+  assert.equal(serialized.includes(mockUserId), false, "User-ID must never be present in diagnostic output");
+});
+
+test("runJctslNetworkDiagnostic skips authorizedApiTest if TCP connection fails", async () => {
+  const result = await runJctslNetworkDiagnostic(
+    { baseUrl: "https://www.omnificent.co.in/OMB/",
+      dnsPromises: {
+        lookup: async () => [{ address: "115.124.96.183", family: 4 }],
+        resolve4: async () => ["115.124.96.183"],
+        resolve6: async () => [],
+      },
+      netConnect(options) {
+        const socket = new EventEmitter();
+        socket.destroy = () => {};
+        socket.removeAllListeners = () => {};
+        setImmediate(() => {
+          const err = new Error("Connection timeout");
+          err.code = "ETIMEDOUT";
+          socket.emit("error", err);
+        });
+        return socket;
+      },
+      httpsRequest: successfulHttpsRequest,
+      fetchImpl: async () => ({ status: 200, statusText: "OK", headers: { get: () => "test" } }),
+      logger: { info: () => {} },
+      testAuthorizedApi: true,
+      authToken: "SOME_TOKEN",
+      userId: "12345",
+      dnsTimeoutMs: 50,
+      connectionTimeoutMs: 50,
+      tcpTimeoutMs: 50,
+    }
+  );
+
+  assert.equal(result.tcpConnectionTest.success, false);
+  assert.equal(result.authorizedApiTest.tested, false);
+  assert.ok(result.authorizedApiTest.reason.includes("timed out"));
 });
