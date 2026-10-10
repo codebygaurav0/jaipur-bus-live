@@ -2156,7 +2156,9 @@ if (require.main === module) {
   });
 }
 
-module.exports = {
+module.exports = app;
+
+Object.assign(module.exports, {
   app,
   jctslFetch,
   upstreamState,
@@ -2165,4 +2167,4 @@ module.exports = {
   TRANSIENT_ERROR_CODES,
   JCTSL_BASE_URL,
   JCTSL_HOST,
-};
+});
