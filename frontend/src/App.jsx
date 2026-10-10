@@ -5,7 +5,136 @@ import "./App.css";
 import MetroHome from "./metro/MetroHome";
 import EmergencyView from "./components/EmergencyView";
 import SupportView from "./components/SupportView";
+import {
+  calculateBearingDegrees,
+  createMarkerAnimator,
+  getBusStatus,
+  getBusStatusClasses,
+  getBusSpeedLabel,
+  getBusStatusStyle,
+  smoothBearingDegrees,
+} from "./markerAnimation";
 
+const BUS_MARKER_STALE_AFTER_MS = 60_000;
+const BUS_MARKER_EXPIRY_MS = 900_000;
+
+function createBusMarkerIcon(
+  status,
+  bearing = 0,
+  vehicleNumber = "",
+  selected = false
+) {
+  const colors = getBusStatusStyle(status);
+  const roundedBearing = Math.round(((bearing % 360) + 360) % 360);
+  const selectionStyle = selected
+    ? "filter: drop-shadow(0 0 6px rgba(14, 165, 233, 0.95)) drop-shadow(0 0 10px rgba(14, 165, 233, 0.6));"
+    : "filter: drop-shadow(0 2px 5px rgba(15, 23, 42, 0.35));";
+
+  return L.divIcon({
+    className: "jbl-bus-marker",
+    html: `
+      <div role="img" aria-label="JCTSL bus ${vehicleNumber}" style="
+        width: 26px;
+        height: 46px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transform: rotate(${roundedBearing}deg);
+        transform-origin: 13px 23px;
+        cursor: pointer;
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        ${selectionStyle}
+      ">
+        <svg width="26" height="46" viewBox="0 0 26 46" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <!-- Outer Wheels / Tires (4 tires) -->
+          <rect x="0.5" y="7" width="2.5" height="7" rx="1.2" fill="#1e293b"/>
+          <rect x="23" y="7" width="2.5" height="7" rx="1.2" fill="#1e293b"/>
+          <rect x="0.5" y="30" width="2.5" height="7" rx="1.2" fill="#1e293b"/>
+          <rect x="23" y="30" width="2.5" height="7" rx="1.2" fill="#1e293b"/>
+
+          <!-- Side Mirrors -->
+          <path d="M2.5 9L0.5 7.5" stroke="#334155" stroke-width="1.2" stroke-linecap="round"/>
+          <path d="M23.5 9L25.5 7.5" stroke="#334155" stroke-width="1.2" stroke-linecap="round"/>
+
+          <!-- Main Bus Body (Aerodynamic City Bus Chassis) -->
+          <rect x="2.5" y="2" width="21" height="42" rx="4.5" fill="#f8fafc" stroke="${colors.border || colors.foreground}" stroke-width="1.8"/>
+
+          <!-- Front Dual Headlights (facing forward / North) -->
+          <circle cx="5.5" cy="3.5" r="1.3" fill="#fef08a" stroke="#ca8a04" stroke-width="0.4"/>
+          <circle cx="20.5" cy="3.5" r="1.3" fill="#fef08a" stroke="#ca8a04" stroke-width="0.4"/>
+
+          <!-- Front Windshield (curved panoramic glass) -->
+          <path d="M5 5C5 3.8 8 3.2 13 3.2C18 3.2 21 3.8 21 5V10H5V5Z" fill="#0284c7"/>
+          <!-- Windshield Glare Reflection -->
+          <path d="M7 5C8.8 4.2 11.5 4 13.5 4.3L12.5 8.5H6.5L7 5Z" fill="#bae6fd" fill-opacity="0.7"/>
+
+          <!-- LED Destination / Live Status Header Bar -->
+          <rect x="6.5" y="11" width="13" height="2.6" rx="1" fill="${colors.accent || colors.foreground}"/>
+
+          <!-- Roof Structure & AC Ventilation Unit -->
+          <rect x="5.5" y="14.5" width="15" height="20" rx="1.8" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="0.8"/>
+          <!-- Roof AC Vents -->
+          <rect x="8.5" y="18" width="9" height="7" rx="1.4" fill="#e2e8f0" stroke="#94a3b8" stroke-width="0.6"/>
+          <line x1="10.5" y1="20" x2="15.5" y2="20" stroke="#64748b" stroke-width="0.6"/>
+          <line x1="10.5" y1="21.5" x2="15.5" y2="21.5" stroke="#64748b" stroke-width="0.6"/>
+          <line x1="10.5" y1="23" x2="15.5" y2="23" stroke="#64748b" stroke-width="0.6"/>
+
+          <!-- Side Windows (Left & Right) -->
+          <rect x="3.2" y="15" width="1.8" height="4.5" rx="0.6" fill="#0369a1"/>
+          <rect x="3.2" y="21" width="1.8" height="4.5" rx="0.6" fill="#0369a1"/>
+          <rect x="3.2" y="27" width="1.8" height="4.5" rx="0.6" fill="#0369a1"/>
+          <rect x="21" y="15" width="1.8" height="4.5" rx="0.6" fill="#0369a1"/>
+          <rect x="21" y="21" width="1.8" height="4.5" rx="0.6" fill="#0369a1"/>
+          <rect x="21" y="27" width="1.8" height="4.5" rx="0.6" fill="#0369a1"/>
+
+          <!-- Rear Window -->
+          <rect x="6" y="36.5" width="14" height="3.5" rx="0.8" fill="#0284c7"/>
+
+          <!-- Rear Dual Taillights (Red) -->
+          <rect x="4.5" y="42" width="2.5" height="1.4" rx="0.6" fill="#ef4444"/>
+          <rect x="19" y="42" width="2.5" height="1.4" rx="0.6" fill="#ef4444"/>
+
+          <!-- Selection Center Dot (only if selected) -->
+          ${selected ? `<circle cx="13" cy="23" r="2.5" fill="#0ea5e9" stroke="#ffffff" stroke-width="1"/>` : ""}
+        </svg>
+      </div>
+    `,
+    iconSize: [26, 46],
+    iconAnchor: [13, 23],
+  });
+}
+
+function createBusPopupContent({
+  vehicleNumber,
+  routeNumber,
+  status,
+  latitude,
+  longitude,
+  speed,
+  timestamp,
+}) {
+  const colors = getBusStatusStyle(status);
+  const speedText =
+    typeof speed === "number" && Number.isFinite(speed)
+      ? `${speed} km/h`
+      : "Unavailable";
+  const timeText = timestamp
+    ? new Date(timestamp).toLocaleTimeString()
+    : "Observation time unavailable";
+
+  return `
+    <div style="font-family:system-ui,sans-serif;font-size:12px;line-height:1.4;min-width:175px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:6px;">
+        <span style="font-weight:900;font-size:13px;color:#0f172a;">🚌 ${vehicleNumber}</span>
+        <span style="background:${colors.background};color:${colors.foreground};font-size:9px;font-weight:900;padding:2px 6px;border-radius:9999px;">● ${status}</span>
+      </div>
+      <div style="font-size:11px;margin-bottom:3px;">Route: <b>${routeNumber || "JCTSL City Bus"}</b></div>
+      <div style="color:#64748b;font-size:10px;margin-top:2px;">GPS: <b>${latitude.toFixed(5)}, ${longitude.toFixed(5)}</b></div>
+      <div style="color:#64748b;font-size:10px;">Speed: <b>${speedText}</b></div>
+      <div style="color:#64748b;font-size:9px;margin-top:3px;">Last observation: <b>${timeText}</b></div>
+    </div>
+  `;
+}
 
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
   const R = 6371; // Earth radius in km
@@ -132,10 +261,17 @@ export default function App() {
   const userMarker = useRef(null);
   const stopMarkers = useRef({});
   const busMarkers = useRef({});
+  const busMarkerMetadata = useRef(new Map());
+  const busMarkerAnimator = useRef(null);
   const routePolyline = useRef(null);
   const routeStopMarkers = useRef([]);
   const routeLiveBusMarkers = useRef([]);
   const hasFittedBounds = useRef(false);
+  const liveBusFetchInFlight = useRef(false);
+  const liveBusLastPollSucceeded = useRef(null);
+  const [liveBusPollVersion, setLiveBusPollVersion] = useState(0);
+  const [selectedBusNumber, setSelectedBusNumber] = useState(null);
+  const [followSelectedBus, setFollowSelectedBus] = useState(false);
 
   // =========================================================
   // App State
@@ -158,6 +294,22 @@ export default function App() {
   const [cityLiveBusesError, setCityLiveBusesError] = useState("");
   const [lastTelemetryUpdate, setLastTelemetryUpdate] = useState("");
   const [secondsSinceUpdate, setSecondsSinceUpdate] = useState(0);
+
+  useEffect(() => {
+    busMarkerAnimator.current = createMarkerAnimator();
+    const markerMetadata = busMarkerMetadata.current;
+    return () => {
+      busMarkerAnimator.current?.cancelAll();
+      if (mapInstance.current) {
+        Object.values(busMarkers.current).forEach((marker) => {
+          mapInstance.current.removeLayer(marker);
+        });
+      }
+      busMarkers.current = {};
+      markerMetadata.clear();
+      busMarkerAnimator.current = null;
+    };
+  }, []);
 
   // Selected Stop Details (for Nearby Stops view)
   const [selectedStop, setSelectedStop] = useState(null);
@@ -280,7 +432,7 @@ export default function App() {
   const fetchBusStops = async () => {
     try {
       setStopsLoading(true);
-      const res = await fetch("http://localhost:11000/api/bus-stops");
+      const res = await fetch("https://jaipur-bus-live-5nvg.vercel.app/api/bus-stops");
       const data = await res.json();
       if (Array.isArray(data?.respData)) {
         setAllStops(data.respData);
@@ -295,7 +447,7 @@ export default function App() {
   const fetchAvailableRoutes = async () => {
     try {
       setRoutesLoading(true);
-      const res = await fetch("http://localhost:11000/api/routes");
+      const res = await fetch("https://jaipur-bus-live-5nvg.vercel.app/api/routes");
       const data = await res.json();
       if (Array.isArray(data?.respData)) {
         setAvailableRoutes(data.respData);
@@ -308,16 +460,21 @@ export default function App() {
   };
 
   const fetchCityLiveBuses = async () => {
+    if (liveBusFetchInFlight.current) return;
+    liveBusFetchInFlight.current = true;
     try {
       setCityLiveBusesLoading(true);
       setCityLiveBusesError("");
-      const res = await fetch("http://localhost:11000/api/live-buses");
+      const res = await fetch("https://jaipur-bus-live-5nvg.vercel.app/api/live-buses");
       const data = await res.json();
       const buses = Array.isArray(data?.respData)
         ? data.respData
         : Array.isArray(data)
         ? data
         : [];
+      const successfulResponse =
+        res.ok && (buses.length > 0 || data?.respCode === "200");
+      liveBusLastPollSucceeded.current = successfulResponse;
 
       console.log("LIVE BUS COUNT:", buses.length);
       console.log(
@@ -325,7 +482,7 @@ export default function App() {
         buses.map((b) => b.vehicleNumber || b.vehno || b.vehicle_number)
       );
 
-      if (buses.length > 0 || data?.respCode === "200") {
+      if (successfulResponse) {
         setCityLiveBuses(buses);
         setLastTelemetryUpdate(new Date().toLocaleTimeString());
         setSecondsSinceUpdate(0);
@@ -333,10 +490,13 @@ export default function App() {
         setCityLiveBusesError("Unable to fetch live data");
       }
     } catch (err) {
+      liveBusLastPollSucceeded.current = false;
       console.warn("City live buses error:", err);
       setCityLiveBusesError("Unable to fetch live data");
     } finally {
+      liveBusFetchInFlight.current = false;
       setCityLiveBusesLoading(false);
+      setLiveBusPollVersion((version) => version + 1);
     }
   };
 
@@ -348,7 +508,7 @@ export default function App() {
     try {
       setStopBusesLoading(true);
       const res = await fetch(
-        `http://localhost:11000/api/buses-near-stop/${encodeURIComponent(stopCode)}`
+        `https://jaipur-bus-live-5nvg.vercel.app/api/buses-near-stop/${encodeURIComponent(stopCode)}`
       );
       const data = await res.json();
       const list = Array.isArray(data?.respData)
@@ -440,10 +600,12 @@ export default function App() {
     if (!mapInstance.current) return;
     const map = mapInstance.current;
     const activeVehicles = new Set();
+    const now = Date.now();
 
-    cityLiveBuses.forEach((b) => {
-      const lat = parseFloat(b.currentLatitude || b.curlat || b.latitude);
-      const lng = parseFloat(b.currentLongitude || b.curlong || b.longitude);
+    (liveBusLastPollSucceeded.current === false ? [] : cityLiveBuses).forEach(
+      (b) => {
+      const lat = Number(b.currentLatitude ?? b.curlat ?? b.latitude);
+      const lng = Number(b.currentLongitude ?? b.curlong ?? b.longitude);
       const vNo = String(
         b.vehicleNumber || b.vehno || b.vehicle_number || ""
       ).trim();
@@ -457,95 +619,206 @@ export default function App() {
         lat === 0 ||
         lng === 0 ||
         !vNo ||
-        b.status === "GPS INVALID"
+        lat < 25 ||
+        lat > 29 ||
+        lng < 74 ||
+        lng > 78 ||
+        getBusStatus(b) === "GPS INVALID"
       ) {
         return;
       }
 
       activeVehicles.add(vNo);
+      const busStatus = getBusStatus(b);
+      const reportedAge = Number(b.telemetryAge);
+      const hasReportedAge =
+        b.telemetryAge !== null &&
+        b.telemetryAge !== undefined &&
+        b.telemetryAge !== "";
+      const isFresh =
+        busStatus.startsWith("LIVE ·") &&
+        (!hasReportedAge || reportedAge <= BUS_MARKER_STALE_AFTER_MS / 1000);
+      const existingMetadata = busMarkerMetadata.current.get(vNo);
+      const backendPrevLat = Number(b.previousLatitude);
+      const backendPrevLng = Number(b.previousLongitude);
+      const hasBackendPreviousGps =
+        Number.isFinite(backendPrevLat) &&
+        Number.isFinite(backendPrevLng) &&
+        backendPrevLat >= 25 &&
+        backendPrevLat <= 29 &&
+        backendPrevLng >= 74 &&
+        backendPrevLng <= 78 &&
+        (backendPrevLat !== lat || backendPrevLng !== lng) &&
+        calculateDistanceKm(backendPrevLat, backendPrevLng, lat, lng) >= 0.005;
 
-      const busIcon = L.divIcon({
-        className: "",
-        html: `
-          <div style="
-            width: 32px;
-            height: 32px;
-            background: #ffffff;
-            border: 2px solid #dc2626;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 4px 12px rgba(220,38,38,0.3);
-            font-size: 16px;
-          ">
-            🚌
-          </div>
-        `,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16],
+      const hasClientPreviousGps =
+        !hasBackendPreviousGps &&
+        existingMetadata &&
+        Number.isFinite(existingMetadata.latitude) &&
+        Number.isFinite(existingMetadata.longitude) &&
+        (existingMetadata.latitude !== lat || existingMetadata.longitude !== lng) &&
+        calculateDistanceKm(existingMetadata.latitude, existingMetadata.longitude, lat, lng) >= 0.005;
+
+      const prevLatForBearing = hasBackendPreviousGps
+        ? backendPrevLat
+        : hasClientPreviousGps
+        ? existingMetadata.latitude
+        : null;
+      const prevLngForBearing = hasBackendPreviousGps
+        ? backendPrevLng
+        : hasClientPreviousGps
+        ? existingMetadata.longitude
+        : null;
+
+      const bearing =
+        prevLatForBearing !== null && prevLngForBearing !== null
+          ? (existingMetadata?.bearing !== undefined
+              ? smoothBearingDegrees(
+                  existingMetadata.bearing,
+                  calculateBearingDegrees(
+                    prevLatForBearing,
+                    prevLngForBearing,
+                    lat,
+                    lng
+                  )
+                )
+              : Math.round(
+                  calculateBearingDegrees(
+                    prevLatForBearing,
+                    prevLngForBearing,
+                    lat,
+                    lng
+                  )
+                ))
+          : existingMetadata?.bearing || 0;
+      const popupContent = createBusPopupContent({
+        vehicleNumber: vNo,
+        routeNumber: rNo,
+        status: busStatus,
+        latitude: lat,
+        longitude: lng,
+        speed:
+          b.speed !== null &&
+          b.speed !== undefined &&
+          b.speed !== "" &&
+          Number.isFinite(Number(b.speed))
+            ? Number(b.speed)
+            : null,
+        timestamp: b.currentTimestamp || b.telemetryTimestamp,
       });
+      let marker = busMarkers.current[vNo];
 
-      const busStatus =
-        b.status ||
-        b.telemetryStatus ||
-        (b.speed && b.speed >= 3 ? "LIVE · MOVING" : "LIVE · STOPPED");
-      const isMoving = busStatus.includes("MOVING");
-      const isStopped = busStatus.includes("STOPPED");
-
-      const statusBadge = isMoving
-        ? `<span style="background: #dcfce7; color: #166534; font-size: 9px; font-weight: 900; padding: 2px 6px; border-radius: 9999px;">● LIVE · MOVING</span>`
-        : isStopped
-        ? `<span style="background: #e0f2fe; color: #0369a1; font-size: 9px; font-weight: 900; padding: 2px 6px; border-radius: 9999px;">● LIVE · STOPPED</span>`
-        : `<span style="background: #f1f5f9; color: #64748b; font-size: 9px; font-weight: 900; padding: 2px 6px; border-radius: 9999px;">○ GPS STALE</span>`;
-
-      const timeFormatted = b.telemetryTimestamp
-        ? new Date(b.telemetryTimestamp).toLocaleTimeString()
-        : b.currentTimestamp
-        ? new Date(b.currentTimestamp).toLocaleTimeString()
-        : "Just now";
-
-      const popupContent = `
-        <div style="font-family: system-ui, sans-serif; font-size: 12px; line-height: 1.4; min-width: 175px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; gap: 6px;">
-            <span style="font-weight: 900; font-size: 13px; color: #0f172a;">🚌 ${vNo}</span>
-            ${statusBadge}
-          </div>
-          ${
-            rNo
-              ? `<div style="font-size: 11px; margin-bottom: 3px;">Route: <b style="background: #dc2626; color: #fff; padding: 1px 5px; border-radius: 4px;">${rNo}</b></div>`
-              : `<div style="font-size: 10px; color: #94a3b8; margin-bottom: 3px;">Route: JCTSL City Bus</div>`
-          }
-          <div style="color: #64748b; font-size: 10px; margin-top: 2px;">
-            GPS: <b>${lat.toFixed(5)}, ${lng.toFixed(5)}</b>
-          </div>
-          ${
-            b.speed !== null && b.speed !== undefined && b.speed > 0
-              ? `<div style="color: #64748b; font-size: 10px;">Speed: <b>${b.speed} km/h</b></div>`
-              : `<div style="color: #94a3b8; font-size: 10px;">Speed: <b>0 km/h (Stationary)</b></div>`
-          }
-          <div style="color: #94a3b8; font-size: 9px; margin-top: 3px;">
-            Last GPS update: <b>${timeFormatted}</b>
-          </div>
-        </div>
-      `;
-
-      if (busMarkers.current[vNo]) {
-        busMarkers.current[vNo].setLatLng([lat, lng]);
-        busMarkers.current[vNo].setPopupContent(popupContent);
-      } else {
-        const marker = L.marker([lat, lng], { icon: busIcon })
+      if (!marker) {
+        marker = L.marker([lat, lng], {
+          icon: createBusMarkerIcon(
+            busStatus,
+            bearing,
+            vNo,
+            selectedBusNumber === vNo
+          ),
+          title: vNo,
+          alt: `JCTSL bus ${vNo}`,
+        })
           .addTo(map)
-          .bindPopup(popupContent);
+          .bindPopup(popupContent)
+          .bindTooltip(vNo, {
+            direction: "top",
+            offset: [0, -23],
+            opacity: 0.95,
+            sticky: true,
+          });
+        marker.on("click", () => setSelectedBusNumber(vNo));
         busMarkers.current[vNo] = marker;
+      } else {
+        const currentPosition = marker.getLatLng();
+        const hasNewCoordinates =
+          currentPosition.lat !== lat || currentPosition.lng !== lng;
+        if (
+          hasNewCoordinates &&
+          isFresh &&
+          busMarkerAnimator.current
+        ) {
+          busMarkerAnimator.current.move(vNo, marker, [lat, lng]);
+        }
+        marker.setIcon(
+          createBusMarkerIcon(
+            busStatus,
+            bearing,
+            vNo,
+            selectedBusNumber === vNo
+          )
+        );
+        marker.setPopupContent(popupContent);
       }
+
+      busMarkerMetadata.current.set(vNo, {
+        bearing,
+        latitude: lat,
+        longitude: lng,
+        routeNumber: rNo,
+        status: busStatus,
+        speed:
+          b.speed !== null &&
+          b.speed !== undefined &&
+          b.speed !== "" &&
+          Number.isFinite(Number(b.speed))
+            ? Number(b.speed)
+            : null,
+        timestamp: b.currentTimestamp || b.telemetryTimestamp,
+        lastSeenAt: isFresh
+          ? now
+          : existingMetadata?.lastSeenAt ||
+            (hasReportedAge && Number.isFinite(reportedAge)
+              ? now - Math.max(0, reportedAge * 1000)
+              : now),
+        missedPolls: 0,
+      });
     });
 
-    // Cleanup absent markers
-    Object.keys(busMarkers.current).forEach((vNo) => {
-      if (!activeVehicles.has(vNo)) {
-        map.removeLayer(busMarkers.current[vNo]);
+    Object.entries(busMarkers.current).forEach(([vNo, marker]) => {
+      if (activeVehicles.has(vNo)) return;
+
+      const metadata = busMarkerMetadata.current.get(vNo);
+      if (!metadata) return;
+      metadata.missedPolls++;
+      const ageMs = now - metadata.lastSeenAt;
+
+      if (
+        ageMs > BUS_MARKER_STALE_AFTER_MS &&
+        metadata.status !== "GPS INVALID"
+      ) {
+        metadata.status = "GPS STALE";
+        marker.setIcon(
+          createBusMarkerIcon(
+            metadata.status,
+            metadata.bearing,
+            vNo,
+            selectedBusNumber === vNo
+          )
+        );
+        const position = marker.getLatLng();
+        marker.setPopupContent(
+          createBusPopupContent({
+            vehicleNumber: vNo,
+            routeNumber: metadata.routeNumber,
+            status: metadata.status,
+            latitude: position.lat,
+            longitude: position.lng,
+            speed: null,
+            timestamp: metadata.timestamp,
+          })
+        );
+      }
+
+      if (ageMs > BUS_MARKER_EXPIRY_MS) {
+        busMarkerAnimator.current?.cancel(vNo);
+        map.removeLayer(marker);
         delete busMarkers.current[vNo];
+        busMarkerMetadata.current.delete(vNo);
+        if (selectedBusNumber === vNo) {
+          setSelectedBusNumber(null);
+          setFollowSelectedBus(false);
+        }
       }
     });
 
@@ -558,7 +831,27 @@ export default function App() {
         map.fitBounds(group.getBounds().pad(0.08));
       }
     }
-  }, [cityLiveBuses]);
+  }, [cityLiveBuses, liveBusPollVersion, selectedBusNumber]);
+
+  useEffect(() => {
+    if (!followSelectedBus || !selectedBusNumber || !mapInstance.current) return;
+    const selectedBus = cityLiveBuses.find(
+      (bus) =>
+        String(bus.vehicleNumber || bus.vehno || bus.vehicle_number || "").trim() ===
+        selectedBusNumber
+    );
+    if (!selectedBus || !getBusStatus(selectedBus).startsWith("LIVE ·")) return;
+
+    const latitude = Number(
+      selectedBus.currentLatitude ?? selectedBus.curlat ?? selectedBus.latitude
+    );
+    const longitude = Number(
+      selectedBus.currentLongitude ?? selectedBus.curlong ?? selectedBus.longitude
+    );
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+      mapInstance.current.panTo([latitude, longitude], { animate: true });
+    }
+  }, [cityLiveBuses, followSelectedBus, selectedBusNumber]);
 
   const locateMe = () => {
     if (!mapInstance.current) return;
@@ -684,7 +977,7 @@ export default function App() {
       const toCode = dest.bus_stop_code || dest.bus_stop_id || dest.bus_stop_name;
 
       // Call strictly validated backend route matcher
-      const res = await fetch("http://localhost:11000/api/routes-between-stops", {
+      const res = await fetch("https://jaipur-bus-live-5nvg.vercel.app/api/routes-between-stops", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -792,12 +1085,12 @@ export default function App() {
 
       // Fetch route map (stops & polyline) and live route upcoming buses
       const [mapRes, liveRes] = await Promise.allSettled([
-        fetch("http://localhost:11000/api/route-map", {
+        fetch("https://jaipur-bus-live-5nvg.vercel.app/api/route-map", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ route_no: routeId }),
         }).then((r) => r.json()),
-        fetch("http://localhost:11000/api/live-route", {
+        fetch("https://jaipur-bus-live-5nvg.vercel.app/api/live-route", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ route_id: routeId }),
@@ -1290,6 +1583,78 @@ export default function App() {
               <circle cx="12" cy="12" r="2" fill="currentColor" />
             </svg>
           </button>
+
+          {/* Floating Selected Bus HUD Card over Map */}
+          {(() => {
+            if (!selectedBusNumber) return null;
+            const selBus = cityLiveBuses.find(
+              (b) =>
+                String(b.vehicleNumber || b.vehno || b.vehicle_number || "").trim() ===
+                selectedBusNumber
+            );
+            const metadata = busMarkerMetadata.current.get(selectedBusNumber);
+            const status = selBus ? getBusStatus(selBus) : (metadata?.status || "LIVE · IDLE");
+            const speed = selBus ? getBusSpeedLabel(selBus) : (metadata?.speed != null ? `${metadata.speed} km/h` : "Speed unavailable");
+            const routeNo = selBus?.routeNumber || selBus?.rno || metadata?.routeNumber || "";
+            const isLive = status.startsWith("LIVE ·");
+
+            return (
+              <div className="absolute left-3 right-3 bottom-16 z-[400] card-3d rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200/95 p-3 shadow-lg">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm font-black text-slate-900 truncate">
+                      🚌 {selectedBusNumber}
+                    </span>
+                    {routeNo && (
+                      <span className="shrink-0 rounded-md bg-rose-600 px-1.5 py-0.5 text-[10px] font-black text-white">
+                        Route {routeNo}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span
+                      className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${getBusStatusClasses(
+                        status
+                      )}`}
+                    >
+                      ● {status}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedBusNumber(null);
+                        setFollowSelectedBus(false);
+                      }}
+                      className="h-6 w-6 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 text-xs font-bold transition"
+                      title="Deselect bus"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-2 flex items-center justify-between text-[11px] text-slate-600 border-t border-slate-100 pt-2">
+                  <div>
+                    Speed: <b className="text-slate-900">{speed}</b>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={!isLive}
+                      onClick={() => setFollowSelectedBus((following) => !following)}
+                      className={`px-3 py-1 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                        followSelectedBus
+                          ? "bg-sky-600 text-white shadow-xs"
+                          : "bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100"
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      <span>{followSelectedBus ? "🎯 Following" : "📍 Follow Bus"}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -1368,7 +1733,7 @@ export default function App() {
                 className="btn-3d btn-3d-light px-2.5 py-1 rounded-lg text-[10px] text-slate-700 font-bold disabled:opacity-40 shrink-0"
                 title="Refresh live telemetry now"
               >
-                ↻ Refresh
+                🔄 Refresh
               </button>
             )}
           </div>
@@ -1423,7 +1788,7 @@ export default function App() {
               onClick={() => setCurrentView("nearbyStops")}
               className="text-sm font-semibold text-slate-800 hover:text-red-600 transition flex items-center gap-1"
             >
-              <span>🚏 Nearby stops</span>
+              <span>📍 Nearby stops</span>
               <span className="text-xs text-slate-400">({allStops.length})</span>
             </button>
             <button
@@ -1762,7 +2127,7 @@ export default function App() {
             </div>
 
             <div className="inline-block px-3.5 py-1 rounded-full bg-rose-50 border border-rose-200 text-xs font-black text-rose-700 shadow-2xs">
-              Even ₹1 helps.
+              {/* Even ₹1 helps. */}
             </div>
 
             <div className="pt-1">
@@ -1950,6 +2315,7 @@ export default function App() {
                 const lat = parseFloat(bus.curlat);
                 const lng = parseFloat(bus.curlong);
                 const nearestCtx = findBusStopContext(lat, lng, allStops);
+                const busStatus = getBusStatus(bus);
 
                 return (
                   <div
@@ -1968,14 +2334,8 @@ export default function App() {
                           </span>
                         )}
                       </div>
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                        (bus.status || "").includes("MOVING")
-                          ? "text-emerald-700 bg-emerald-100"
-                          : (bus.status || "").includes("STOPPED")
-                          ? "text-sky-700 bg-sky-100"
-                          : "text-slate-600 bg-slate-100"
-                      }`}>
-                        {bus.status || "LIVE · STOPPED"}
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${getBusStatusClasses(busStatus)}`}>
+                        {busStatus}
                       </span>
                     </div>
 
@@ -2004,6 +2364,26 @@ export default function App() {
                         className="flex-1 rounded-xl bg-white border border-slate-200 py-1.5 text-xs font-bold text-slate-800 hover:bg-slate-100 transition text-center"
                       >
                         Locate on Map
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!busStatus.startsWith("LIVE ·")}
+                        onClick={() => {
+                          const vehicleNumber = String(bus.vehno || "").trim();
+                          setSelectedBusNumber(vehicleNumber);
+                          setFollowSelectedBus((following) =>
+                            following && selectedBusNumber === vehicleNumber
+                              ? false
+                              : true
+                          );
+                          setCurrentView("home");
+                        }}
+                        className="flex-1 rounded-xl border border-blue-200 bg-blue-50 py-1.5 text-xs font-bold text-blue-800 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {followSelectedBus &&
+                        selectedBusNumber === String(bus.vehno || "").trim()
+                          ? "Stop Following"
+                          : "Follow Bus"}
                       </button>
                       {bus.rno && (
                         <button
@@ -2379,83 +2759,79 @@ export default function App() {
                       </div>
 
                       {/* Live Buses along this stop */}
-                      {stopBusesAtNode.map((bus, bIdx) => (
-                        <div
-                          key={`bus-${bus.vehicle_number || bIdx}`}
-                          className="timeline-bus-item"
-                        >
-                          <div className="timeline-marker-anchor">
-                            <div
-                              className="timeline-bus-marker"
-                              style={{
-                                borderColor: bus.veh_color || "#16a34a",
-                                color: bus.veh_color || "#16a34a",
-                              }}
-                            >
-                              🚌
-                            </div>
-                          </div>
-
+                      {stopBusesAtNode.map((bus, bIdx) => {
+                        const busStatus = getBusStatus(bus);
+                        const speedLabel = getBusSpeedLabel(bus);
+                        return (
                           <div
-                            onClick={() => {
-                              if (mapInstance.current && !isNaN(bus.latitude) && !isNaN(bus.longitude)) {
-                                setCurrentView("home");
-                                setTimeout(() => {
-                                  if (mapInstance.current) {
-                                    mapInstance.current.setView([bus.latitude, bus.longitude], 16);
-                                  }
-                                }, 100);
-                              }
-                            }}
-                            className="flex flex-col sm:flex-row sm:items-center justify-between w-full bg-slate-50 border border-slate-200/90 hover:border-green-500 rounded-xl px-3 py-2 ml-2 shadow-xs cursor-pointer transition"
-                            title="Click to view live bus on map"
+                            key={`bus-${bus.vehicle_number || bIdx}`}
+                            className="timeline-bus-item"
                           >
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-black text-slate-900">
-                                  🚌 {bus.vehicle_number}
-                                </span>
-                                <span className={`rounded text-[9px] font-black px-1.5 py-0.5 ${
-                                  (bus.status || "").includes("MOVING")
-                                    ? "bg-emerald-100 text-emerald-800"
-                                    : (bus.status || "").includes("STOPPED")
-                                    ? "bg-sky-100 text-sky-800"
-                                    : "bg-slate-100 text-slate-600"
-                                }`}>
-                                  ● {bus.status || (bus.speed && bus.speed >= 3 ? "LIVE · MOVING" : "LIVE · STOPPED")}
-                                </span>
+                            <div className="timeline-marker-anchor">
+                              <div
+                                className="timeline-bus-marker"
+                                style={{
+                                  borderColor: bus.veh_color || "#16a34a",
+                                  color: bus.veh_color || "#16a34a",
+                                }}
+                              >
+                                🚌
                               </div>
-                              <div className="text-[10px] text-slate-500 font-medium mt-0.5 space-x-1.5">
-                                <span>
-                                  {bus.speed ? `${bus.speed} km/h` : (bus.status || "").includes("MOVING") ? "Moving" : "Stopped"}
-                                </span>
-                                <span>•</span>
-                                <span className="font-mono text-slate-600">
-                                  GPS: {bus.latitude?.toFixed(4)}, {bus.longitude?.toFixed(4)}
-                                </span>
-                              </div>
-                              {(bus.next_stop || bus.nextStop) && (
-                                <p className="text-[10px] text-slate-600 font-bold mt-0.5">
-                                  Next: {bus.next_stop || bus.nextStop}
-                                </p>
-                              )}
                             </div>
 
-                            <div className="mt-1 sm:mt-0 flex items-center gap-1.5">
-                              {bus.eta && bus.eta !== bus.vehicle_number ? (
-                                <span className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-black">
-                                  ETA: {bus.eta}
-                                </span>
-                              ) : (
-                                <span className="text-[10px] font-medium text-slate-400">
-                                  In Transit
-                                </span>
-                              )}
-                              <span className="text-xs font-bold text-slate-400">›</span>
+                            <div
+                              onClick={() => {
+                                if (mapInstance.current && !isNaN(bus.latitude) && !isNaN(bus.longitude)) {
+                                  setCurrentView("home");
+                                  setTimeout(() => {
+                                    if (mapInstance.current) {
+                                      mapInstance.current.setView([bus.latitude, bus.longitude], 16);
+                                    }
+                                  }, 100);
+                                }
+                              }}
+                              className="flex flex-col sm:flex-row sm:items-center justify-between w-full bg-slate-50 border border-slate-200/90 hover:border-green-500 rounded-xl px-3 py-2 ml-2 shadow-xs cursor-pointer transition"
+                              title="Click to view live bus on map"
+                            >
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-black text-slate-900">
+                                    🚌 {bus.vehicle_number}
+                                  </span>
+                                  <span className={`rounded text-[9px] font-black px-1.5 py-0.5 ${getBusStatusClasses(busStatus)}`}>
+                                    ● {busStatus}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-medium mt-0.5 space-x-1.5">
+                                  <span>{speedLabel}</span>
+                                  <span>•</span>
+                                  <span className="font-mono text-slate-600">
+                                    GPS: {bus.latitude?.toFixed(4)}, {bus.longitude?.toFixed(4)}
+                                  </span>
+                                </div>
+                                {(bus.next_stop || bus.nextStop) && (
+                                  <p className="text-[10px] text-slate-600 font-bold mt-0.5">
+                                    Next: {bus.next_stop || bus.nextStop}
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="mt-1 sm:mt-0 flex items-center gap-1.5">
+                                {bus.eta && bus.eta !== bus.vehicle_number ? (
+                                  <span className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-black">
+                                    ETA: {bus.eta}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-medium text-slate-400">
+                                    In Transit
+                                  </span>
+                                )}
+                                <span className="text-xs font-bold text-slate-400">›</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   );
                 });

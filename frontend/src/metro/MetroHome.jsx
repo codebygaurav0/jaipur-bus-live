@@ -22,10 +22,10 @@ export default function MetroHome({ onBackToBus }) {
     try {
       setLoading(true);
       const [stRes, statusRes] = await Promise.allSettled([
-        fetch("http://localhost:11000/api/metro/stations").then((r) =>
+        fetch("https://jaipur-bus-live-5nvg.vercel.app/api/metro/stations").then((r) =>
           r.json()
         ),
-        fetch("http://localhost:11000/api/metro/status").then((r) => r.json()),
+        fetch("https://jaipur-bus-live-5nvg.vercel.app/api/metro/status").then((r) => r.json()),
       ]);
 
       if (stRes.status === "fulfilled" && Array.isArray(stRes.value?.stations)) {

@@ -35,7 +35,7 @@ export default function MetroJourney({
       setLoading(true);
       setErrorMsg("");
       const res = await fetch(
-        `http://localhost:11000/api/metro/journey?from=${encodeURIComponent(
+        `https://jaipur-bus-live-5nvg.vercel.app/api/metro/journey?from=${encodeURIComponent(
           fromCode
         )}&to=${encodeURIComponent(toCode)}`
       );

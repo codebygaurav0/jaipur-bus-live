@@ -1,55 +1,87 @@
-/**
- * Jaipur Bus Live (JBL) — Real-Time Telemetry Evaluation Engine
- * 
- * Source: Official JCTSL Telemetry Feed (POST /OMB/allvehloc)
- * 
- * Core Invariant:
- * 1. ZERO synthetic/simulated GPS or fake movement.
- * 2. Real Haversine distance & speed calculation from consecutive JCTSL GPS points.
- * 3. Applies the exact same deterministic algorithm to EVERY bus uniformly.
- * 4. Categorizes status:
- *    - LIVE · MOVING (fresh valid GPS + movement >= 15m & speed >= 3 km/h)
- *    - LIVE · STOPPED (fresh valid GPS + stationary / parked)
- *    - GPS STALE (no telemetry received for > 60s)
- *    - GPS INVALID (null, 0, NaN, or coordinates outside Rajasthan/Jaipur bounds)
- */
+// Stale after 60s; stopped needs two repeated samples spanning 30s; reject >120 km/h and gaps over 120s.
+const TELEMETRY_THRESHOLDS = Object.freeze({
+  staleAfterMs: 60_000,
+  stationaryConfirmationMs: 30_000,
+  stationaryConfirmationReadings: 2,
+  stationaryDistanceMeters: 5,
+  slowDistanceMeters: 5,
+  movingDistanceMeters: 15,
+  movingSpeedKmh: 3,
+  maxSpeedKmh: 120,
+  maxObservationGapMs: 120_000,
+  expireAfterMs: 900_000,
+});
 
 function haversineMeters(lat1, lon1, lat2, lon2) {
-  if (
-    lat1 === null || lon1 === null || lat2 === null || lon2 === null ||
-    isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)
-  ) {
-    return 0;
-  }
-  const R = 6371000; // Earth radius in meters
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+  const values = [lat1, lon1, lat2, lon2].map(Number);
+  if (!values.every(Number.isFinite)) return null;
+
+  const [latitude1, longitude1, latitude2, longitude2] = values;
+  const radiusMeters = 6_371_000;
+  const latitudeDelta = ((latitude2 - latitude1) * Math.PI) / 180;
+  const longitudeDelta = ((longitude2 - longitude1) * Math.PI) / 180;
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos((latitude1 * Math.PI) / 180) *
+      Math.cos((latitude2 * Math.PI) / 180) *
+      Math.sin(longitudeDelta / 2) ** 2;
+
+  return (
+    2 *
+    radiusMeters *
+    Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
+  );
 }
 
-function isValidJaipurGps(lat, lng) {
-  if (lat === null || lng === null || isNaN(lat) || isNaN(lng)) return false;
-  if (lat === 0 || lng === 0) return false;
-  // Bounding box for Rajasthan / Greater Jaipur Metropolitan Region
-  // Approx: 25.0°N to 29.0°N, 74.0°E to 78.0°E
-  if (lat < 25.0 || lat > 29.0 || lng < 74.0 || lng > 78.0) return false;
-  return true;
+function parseCoordinate(value) {
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  const coordinate = Number(value);
+  return Number.isFinite(coordinate) ? coordinate : null;
+}
+
+function firstCoordinate(raw, names) {
+  for (const name of names) {
+    if (raw[name] !== undefined && raw[name] !== null && raw[name] !== "") {
+      return parseCoordinate(raw[name]);
+    }
+  }
+  return null;
+}
+
+function isValidJaipurGps(latitude, longitude) {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return false;
+  if (latitude === 0 || longitude === 0) return false;
+  return (
+    latitude >= 25 &&
+    latitude <= 29 &&
+    longitude >= 74 &&
+    longitude <= 78
+  );
+}
+
+function stateForStatus(status) {
+  if (status === "LIVE · MOVING") return "MOVING";
+  if (status === "LIVE · SLOW") return "SLOW";
+  if (status === "LIVE · STOPPED") return "STOPPED";
+  if (status === "GPS STALE") return "GPS_STALE";
+  if (status === "GPS INVALID") return "GPS_INVALID";
+  if (status === "GPS UNCERTAIN") return "GPS_UNCERTAIN";
+  return "IDLE";
 }
 
 class TelemetryEngine {
-  constructor() {
+  constructor({ now = Date.now, thresholds = {} } = {}) {
+    this.now = now;
+    this.thresholds = { ...TELEMETRY_THRESHOLDS, ...thresholds };
     this.vehicleStore = new Map();
+    this.observationStore = new Map();
     this.latestSummary = {
       totalReceived: 0,
       validGps: 0,
       liveMoving: 0,
+      liveSlow: 0,
+      liveIdle: 0,
       liveStopped: 0,
       gpsStale: 0,
       gpsInvalid: 0,
@@ -58,11 +90,6 @@ class TelemetryEngine {
     };
   }
 
-  /**
-   * Evaluates fresh array of raw vehicles from POST /OMB/allvehloc
-   * @param {Array} rawVehicles
-   * @returns {Object} { summary, vehicles }
-   */
   processTelemetry(rawVehicles) {
     if (!Array.isArray(rawVehicles)) {
       return {
@@ -71,220 +98,244 @@ class TelemetryEngine {
       };
     }
 
-    const now = Date.now();
-    const seenVehicleNumbers = new Set();
+    const observedAt = this.now();
+    if (!Number.isFinite(observedAt)) {
+      throw new Error("Telemetry observation clock returned an invalid timestamp");
+    }
 
+    const seenVehicleNumbers = new Set();
     let validGpsCount = 0;
     let liveMovingCount = 0;
+    let liveSlowCount = 0;
+    let liveIdleCount = 0;
     let liveStoppedCount = 0;
     let gpsInvalidCount = 0;
     let rejectedCount = 0;
 
     for (const raw of rawVehicles) {
-      const vNo = String(
-        raw.vehno || raw.vehicle_number || raw.vehicel_no || ""
-      ).trim().toUpperCase();
-
-      if (!vNo) {
+      if (!raw || typeof raw !== "object") {
         rejectedCount++;
         continue;
       }
 
-      seenVehicleNumbers.add(vNo);
+      const vehicleNumber = String(
+        raw.vehno || raw.vehicle_number || raw.vehicel_no || ""
+      )
+        .trim()
+        .toUpperCase();
+      if (!vehicleNumber || seenVehicleNumbers.has(vehicleNumber)) {
+        rejectedCount++;
+        continue;
+      }
+      seenVehicleNumbers.add(vehicleNumber);
 
-      const devId = String(raw.devid || raw.device_id || "").trim();
-      const routeNo = String(
+      const deviceId = String(raw.devid || raw.device_id || "").trim();
+      const routeNumber = String(
         raw.rno || raw.route_no || raw.route_number || ""
       ).trim();
+      const latitude = firstCoordinate(raw, [
+        "curlat",
+        "currentLatitude",
+        "latitude",
+      ]);
+      const longitude = firstCoordinate(raw, [
+        "curlong",
+        "currentLongitude",
+        "longitude",
+      ]);
 
-      const curLat = parseFloat(raw.curlat || raw.latitude);
-      const curLong = parseFloat(raw.curlong || raw.longitude);
-      const prevLatRaw = parseFloat(raw.prevlat || raw.prelat);
-      const prevLongRaw = parseFloat(raw.prevlong || raw.prelong);
-
-      const hasValidCurrentGps = isValidJaipurGps(curLat, curLong);
-
-      if (!hasValidCurrentGps) {
+      if (!isValidJaipurGps(latitude, longitude)) {
         gpsInvalidCount++;
-        const record = {
-          vehicleNumber: vNo,
-          vehicle_number: vNo,
-          vehno: vNo,
-          deviceId: devId,
-          device_id: devId,
-          devid: devId,
-          routeNumber: routeNo,
-          route_number: routeNo,
-          route: routeNo,
-          rno: routeNo,
-          latitude: isNaN(curLat) ? null : curLat,
-          longitude: isNaN(curLong) ? null : curLong,
+        this.vehicleStore.set(vehicleNumber, {
+          vehicleNumber,
+          vehicle_number: vehicleNumber,
+          vehno: vehicleNumber,
+          deviceId,
+          device_id: deviceId,
+          devid: deviceId,
+          routeNumber,
+          route_number: routeNumber,
+          route: routeNumber,
+          rno: routeNumber,
+          latitude,
+          longitude,
+          currentLatitude: latitude,
+          currentLongitude: longitude,
+          curlat: raw.curlat ?? null,
+          curlong: raw.curlong ?? null,
           previousLatitude: null,
           previousLongitude: null,
+          prelat: null,
+          prelong: null,
           previousTimestamp: null,
-          currentLatitude: isNaN(curLat) ? null : curLat,
-          currentLongitude: isNaN(curLong) ? null : curLong,
-          curlat: raw.curlat || null,
-          curlong: raw.curlong || null,
-          prelat: raw.prevlat || raw.prelat || null,
-          prelong: raw.prevlong || raw.prelong || null,
           previousTimestampIso: null,
-          currentTimestamp: now,
-          telemetryTimestamp: new Date(now).toISOString(),
+          currentTimestamp: observedAt,
+          telemetryTimestamp: new Date(observedAt).toISOString(),
           telemetryAge: 0,
-          distanceMoved: 0,
-          calculatedSpeed: 0,
-          speed: 0,
-          movementState: "STOPPED",
-          movement_state: "STOPPED",
+          distanceMoved: null,
+          calculatedSpeed: null,
+          speed: null,
+          movementState: "GPS_INVALID",
+          movement_state: "GPS_INVALID",
           telemetryStatus: "GPS INVALID",
           status: "GPS INVALID",
-          lastSeen: now,
-        };
-        this.vehicleStore.set(vNo, record);
+          lastSeen: observedAt,
+        });
         continue;
       }
 
       validGpsCount++;
+      const previous = this.observationStore.get(vehicleNumber);
+      const elapsedMs = previous ? observedAt - previous.observedAt : null;
+      const usablePrevious =
+        previous &&
+        elapsedMs > 0 &&
+        elapsedMs <= this.thresholds.maxObservationGapMs;
+      const previousLatitude = usablePrevious ? previous.latitude : null;
+      const previousLongitude = usablePrevious ? previous.longitude : null;
+      const previousTimestamp = usablePrevious ? previous.observedAt : null;
 
-      const existing = this.vehicleStore.get(vNo);
+      let distanceMoved = null;
+      let speedKmh = null;
+      let status = "LIVE · IDLE";
+      let stationarySince = null;
+      let stationaryReadings = 0;
 
-      let prevLat = null;
-      let prevLong = null;
-      let prevTime = null;
-      let distMeters = 0;
-      let speedKmh = 0;
-      let status = "LIVE · STOPPED";
+      if (usablePrevious) {
+        distanceMoved = haversineMeters(
+          previousLatitude,
+          previousLongitude,
+          latitude,
+          longitude
+        );
+        speedKmh = (distanceMoved / (elapsedMs / 1000)) * 3.6;
 
-      if (existing && existing.currentLatitude !== null && existing.currentLongitude !== null) {
-        // Consecutive reading from previous server poll
-        if (
-          existing.currentLatitude === curLat &&
-          existing.currentLongitude === curLong
+        if (speedKmh > this.thresholds.maxSpeedKmh) {
+          distanceMoved = null;
+          speedKmh = null;
+          status = "GPS UNCERTAIN";
+        } else if (
+          distanceMoved <= this.thresholds.stationaryDistanceMeters
         ) {
-          // Stationary vehicle
-          prevLat = existing.previousLatitude ?? curLat;
-          prevLong = existing.previousLongitude ?? curLong;
-          prevTime = existing.previousTimestamp ?? existing.currentTimestamp;
-          distMeters = 0;
-          speedKmh = 0;
-          status = "LIVE · STOPPED";
-          liveStoppedCount++;
-        } else {
-          // Coordinates shifted between consecutive polls
-          prevLat = existing.currentLatitude;
-          prevLong = existing.currentLongitude;
-          prevTime = existing.currentTimestamp;
-
-          const elapsedSec = Math.max(1, (now - prevTime) / 1000);
-          distMeters = Math.round(haversineMeters(prevLat, prevLong, curLat, curLong) * 10) / 10;
-          speedKmh = Math.round(((distMeters / elapsedSec) * 3.6) * 10) / 10;
-
-          // Reject unreasonable teleports/GPS anomalies (> 120 km/h city bus)
-          if (speedKmh > 120) {
+          stationarySince = previous.stationarySince ?? previous.observedAt;
+          stationaryReadings = previous.stationaryReadings + 1;
+          if (
+            stationaryReadings >=
+              this.thresholds.stationaryConfirmationReadings &&
+            observedAt - stationarySince >=
+              this.thresholds.stationaryConfirmationMs
+          ) {
+            status = "LIVE · STOPPED";
             speedKmh = 0;
-            distMeters = 0;
-            status = "LIVE · STOPPED";
-            liveStoppedCount++;
-          } else if (distMeters >= 15 && speedKmh >= 3.0) {
-            status = "LIVE · MOVING";
-            liveMovingCount++;
           } else {
-            status = "LIVE · STOPPED";
-            liveStoppedCount++;
+            status = "LIVE · IDLE";
+            speedKmh = null;
           }
+        } else if (
+          distanceMoved >= this.thresholds.movingDistanceMeters &&
+          speedKmh >= this.thresholds.movingSpeedKmh
+        ) {
+          status = "LIVE · MOVING";
+        } else if (distanceMoved >= this.thresholds.slowDistanceMeters) {
+          status = "LIVE · SLOW";
+        } else {
+          status = "LIVE · IDLE";
+          speedKmh = null;
         }
       } else {
-        // First observation in this server process
-        // Check if upstream payload provided prevlat/prevlong
-        if (
-          isValidJaipurGps(prevLatRaw, prevLongRaw) &&
-          (prevLatRaw !== curLat || prevLongRaw !== curLong)
-        ) {
-          prevLat = prevLatRaw;
-          prevLong = prevLongRaw;
-          prevTime = now - 25000; // Standard 25s transmission delta
-          const elapsedSec = 25;
-          distMeters = Math.round(haversineMeters(prevLat, prevLong, curLat, curLong) * 10) / 10;
-          speedKmh = Math.round(((distMeters / elapsedSec) * 3.6) * 10) / 10;
-
-          if (speedKmh <= 120 && distMeters >= 15 && speedKmh >= 3.0) {
-            status = "LIVE · MOVING";
-            liveMovingCount++;
-          } else {
-            status = "LIVE · STOPPED";
-            liveStoppedCount++;
-          }
-        } else {
-          prevLat = curLat;
-          prevLong = curLong;
-          prevTime = now;
-          distMeters = 0;
-          speedKmh = 0;
-          status = "LIVE · STOPPED";
-          liveStoppedCount++;
-        }
+        distanceMoved = null;
+        speedKmh = null;
       }
 
-      const movementState = status.includes("MOVING") ? "MOVING" : "STOPPED";
+      if (status === "LIVE · MOVING" || status === "LIVE · SLOW") {
+        stationarySince = null;
+        stationaryReadings = 0;
+      } else if (status === "GPS UNCERTAIN") {
+        stationarySince = null;
+        stationaryReadings = 0;
+      } else if (!usablePrevious) {
+        stationarySince = null;
+        stationaryReadings = 0;
+      }
 
+      this.observationStore.set(vehicleNumber, {
+        latitude,
+        longitude,
+        observedAt,
+        stationarySince,
+        stationaryReadings,
+      });
+
+      const state = stateForStatus(status);
       const record = {
-        vehicleNumber: vNo,
-        vehicle_number: vNo,
-        vehno: vNo,
-        deviceId: devId,
-        device_id: devId,
-        devid: devId,
-        routeNumber: routeNo,
-        route_number: routeNo,
-        route: routeNo,
-        rno: routeNo,
-        latitude: curLat,
-        longitude: curLong,
-        currentLatitude: curLat,
-        currentLongitude: curLong,
-        curlat: String(curLat),
-        curlong: String(curLong),
-        previousLatitude: prevLat,
-        previousLongitude: prevLong,
-        prelat: prevLat !== null ? String(prevLat) : String(curLat),
-        prelong: prevLong !== null ? String(prevLong) : String(curLong),
-        previousTimestamp: prevTime,
-        previousTimestampIso: prevTime ? new Date(prevTime).toISOString() : null,
-        currentTimestamp: now,
-        telemetryTimestamp: new Date(now).toISOString(),
+        vehicleNumber,
+        vehicle_number: vehicleNumber,
+        vehno: vehicleNumber,
+        deviceId,
+        device_id: deviceId,
+        devid: deviceId,
+        routeNumber,
+        route_number: routeNumber,
+        route: routeNumber,
+        rno: routeNumber,
+        latitude,
+        longitude,
+        currentLatitude: latitude,
+        currentLongitude: longitude,
+        curlat: String(latitude),
+        curlong: String(longitude),
+        previousLatitude,
+        previousLongitude,
+        prelat:
+          previousLatitude === null ? null : String(previousLatitude),
+        prelong:
+          previousLongitude === null ? null : String(previousLongitude),
+        previousTimestamp,
+        previousTimestampIso:
+          previousTimestamp === null
+            ? null
+            : new Date(previousTimestamp).toISOString(),
+        currentTimestamp: observedAt,
+        telemetryTimestamp: new Date(observedAt).toISOString(),
         telemetryAge: 0,
-        distanceMoved: distMeters,
-        calculatedSpeed: speedKmh,
-        speed: speedKmh,
-        movementState,
-        movement_state: movementState,
+        distanceMoved:
+          distanceMoved === null ? null : Math.round(distanceMoved * 10) / 10,
+        calculatedSpeed:
+          speedKmh === null ? null : Math.round(speedKmh * 10) / 10,
+        speed: speedKmh === null ? null : Math.round(speedKmh * 10) / 10,
+        movementState: state,
+        movement_state: state,
         telemetryStatus: status,
         status,
-        lastSeen: now,
+        lastSeen: observedAt,
       };
+      this.vehicleStore.set(vehicleNumber, record);
 
-      this.vehicleStore.set(vNo, record);
+      if (status === "LIVE · MOVING") liveMovingCount++;
+      else if (status === "LIVE · SLOW") liveSlowCount++;
+      else if (status === "LIVE · STOPPED") liveStoppedCount++;
+      else if (status === "LIVE · IDLE") liveIdleCount++;
     }
 
-    // Check for stale vehicles (vehicles previously in store but absent from current response)
     let gpsStaleCount = 0;
-    for (const [vNo, record] of this.vehicleStore.entries()) {
-      if (!seenVehicleNumbers.has(vNo)) {
-        const ageSec = Math.round((now - record.currentTimestamp) / 1000);
-        record.telemetryAge = ageSec;
+    for (const [vehicleNumber, record] of this.vehicleStore.entries()) {
+      if (seenVehicleNumbers.has(vehicleNumber)) continue;
 
-        if (ageSec > 60) {
-          record.status = "GPS STALE";
-          record.calculatedSpeed = 0;
-          record.speed = 0;
-          gpsStaleCount++;
-        }
-
-        // Expire vehicles completely missing for > 15 minutes
-        if (ageSec > 900) {
-          this.vehicleStore.delete(vNo);
-        }
+      const ageMs = observedAt - record.currentTimestamp;
+      record.telemetryAge = Math.max(0, Math.floor(ageMs / 1000));
+      if (ageMs > this.thresholds.staleAfterMs) {
+        record.status =
+          record.status === "GPS INVALID" ? "GPS INVALID" : "GPS STALE";
+        record.telemetryStatus = record.status;
+        record.movementState = stateForStatus(record.status);
+        record.movement_state = record.movementState;
+        record.calculatedSpeed = null;
+        record.speed = null;
+        if (record.status === "GPS STALE") gpsStaleCount++;
+      }
+      if (ageMs > this.thresholds.expireAfterMs) {
+        this.vehicleStore.delete(vehicleNumber);
+        this.observationStore.delete(vehicleNumber);
       }
     }
 
@@ -292,11 +343,13 @@ class TelemetryEngine {
       totalReceived: rawVehicles.length,
       validGps: validGpsCount,
       liveMoving: liveMovingCount,
+      liveSlow: liveSlowCount,
+      liveIdle: liveIdleCount,
       liveStopped: liveStoppedCount,
       gpsStale: gpsStaleCount,
       gpsInvalid: gpsInvalidCount,
       rejected: rejectedCount,
-      lastUpdated: new Date(now).toISOString(),
+      lastUpdated: new Date(observedAt).toISOString(),
     };
 
     return {
@@ -305,26 +358,33 @@ class TelemetryEngine {
     };
   }
 
-  /**
-   * Returns list of vehicles from the store with updated telemetry ages
-   */
   getLiveVehicles() {
-    const now = Date.now();
-    const result = [];
+    const now = this.now();
+    if (!Number.isFinite(now)) {
+      throw new Error("Telemetry observation clock returned an invalid timestamp");
+    }
+    const vehicles = [];
+
     for (const record of this.vehicleStore.values()) {
-      const ageSec = Math.round((now - record.currentTimestamp) / 1000);
-      result.push({
+      const ageMs = Math.max(0, now - record.currentTimestamp);
+      const telemetryAge = Math.floor(ageMs / 1000);
+      const isStale =
+        record.status !== "GPS INVALID" &&
+        ageMs > this.thresholds.staleAfterMs;
+      const status = isStale ? "GPS STALE" : record.status;
+      const movementState = stateForStatus(status);
+
+      vehicles.push({
         ...record,
-        telemetryAge: ageSec,
-        status:
-          record.status === "GPS INVALID"
-            ? "GPS INVALID"
-            : ageSec > 60
-            ? "GPS STALE"
-            : record.status,
+        telemetryAge,
+        status,
+        telemetryStatus: status,
+        movementState,
+        movement_state: movementState,
+        ...(isStale ? { calculatedSpeed: null, speed: null } : {}),
       });
     }
-    return result;
+    return vehicles;
   }
 
   getSummary() {
@@ -337,7 +397,7 @@ const engineInstance = new TelemetryEngine();
 module.exports = {
   TelemetryEngine,
   telemetryEngine: engineInstance,
+  TELEMETRY_THRESHOLDS,
   haversineMeters,
   isValidJaipurGps,
 };
-
