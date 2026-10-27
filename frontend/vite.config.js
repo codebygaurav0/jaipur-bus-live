@@ -12,9 +12,9 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(import.meta.dirname, "index.html"),
-        busRoutes: resolve(import.meta.dirname, "pages/jaipur-bus-routes/index.html"),
-        metroGuide: resolve(import.meta.dirname, "pages/jaipur-metro-guide/index.html"),
-        liveTracking: resolve(import.meta.dirname, "pages/jctsl-live-bus-tracking/index.html"),
+        busRoutes: resolve(import.meta.dirname, "jaipur-bus-routes/index.html"),
+        metroGuide: resolve(import.meta.dirname, "jaipur-metro-guide/index.html"),
+        liveTracking: resolve(import.meta.dirname, "jctsl-live-bus-tracking/index.html"),
       },
     },
   },
