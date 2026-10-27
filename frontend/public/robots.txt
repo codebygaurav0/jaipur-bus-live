@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://jaipur-bus-live.web.app/sitemap.xml
