@@ -3,4 +3,13 @@
   <url>
     <loc>https://jaipur-bus-live.web.app/</loc>
   </url>
+  <url>
+    <loc>https://jaipur-bus-live.web.app/jaipur-bus-routes/</loc>
+  </url>
+  <url>
+    <loc>https://jaipur-bus-live.web.app/jctsl-live-bus-tracking/</loc>
+  </url>
+  <url>
+    <loc>https://jaipur-bus-live.web.app/jaipur-metro-guide/</loc>
+  </url>
 </urlset>
