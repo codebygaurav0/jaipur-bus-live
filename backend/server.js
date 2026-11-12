@@ -1,12 +1,13 @@
-const express = require("express");
+﻿const express = require("express");
 const cors = require("cors");
-const fs = require("fs");
-const path = require("path");
 const dns = require("dns");
 const https = require("https");
-require("dotenv").config();
+const path = require("path");
+const { createHash } = require("crypto");
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 const { telemetryEngine } = require("./telemetryEngine");
 const { runJctslNetworkDiagnostic } = require("./jctslNetworkDiagnostic");
+const { createSessionManager, createSessionStore } = require("./sessionStore");
 
 // Force IPv4 DNS resolution first to avoid IPv6 NAT64 prefix (64:ff9b::) timeouts on cloud hosts (Render/Docker/Linux)
 if (typeof dns.setDefaultResultOrder === "function") {
@@ -15,81 +16,107 @@ if (typeof dns.setDefaultResultOrder === "function") {
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
+const allowedOrigins = new Set([
+  "https://jaipur-bus-live.web.app",
+  "http://localhost:1588",
+  "http://127.0.0.1:1588",
+  ...(process.env.CORS_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+]);
+
+app.use(cors({
+  origin(origin, callback) {
+    callback(null, !origin || allowedOrigins.has(origin));
+  },
+}));
+app.use(express.json({ limit: "100kb" }));
 
 const PORT = process.env.PORT || 11000;
 const JCTSL_DIAGNOSTIC_MODE = process.env.JCTSL_DIAGNOSTIC_MODE === "true";
 
 const rawBaseUrl = (process.env.JCTSL_BASE_URL || "https://www.omnificent.co.in/OMB/").trim();
 const JCTSL_BASE_URL = rawBaseUrl.endsWith("/") ? rawBaseUrl : `${rawBaseUrl}/`;
-const JCTSL_HOST = new URL(JCTSL_BASE_URL).hostname;
-
-const SESSION_FILE = path.join(__dirname, ".session.json");
+const parsedBaseUrl = new URL(JCTSL_BASE_URL);
+if (parsedBaseUrl.protocol !== "https:") {
+  throw new Error("JCTSL_BASE_URL must use HTTPS");
+}
+const JCTSL_HOST = parsedBaseUrl.hostname;
 
 /*
 |--------------------------------------------------------------------------
-| IN-MEMORY & PERSISTED JCTSL SESSION MANAGEMENT
-| Keeps sensitive Auth-token and User-ID securely on the backend.
+| LOCAL JCTSL SESSION MANAGEMENT
+| Local backends persist verified credentials; serverless replicas remain isolated.
 |--------------------------------------------------------------------------
 */
-let activeSession = null;
+const sessionStore = createSessionStore(
+  process.env.JCTSL_SESSION_FILE || path.join(__dirname, ".session.json")
+);
+const sessionManager = createSessionManager({
+  store: sessionStore,
+  verifySession: verifyRestoredJctslSession,
+});
 const pendingAuthMap = new Map(); // mobile -> { authToken, userId, expectedOtp, respData, timestamp }
+const otpRequestLimits = new Map();
+const OTP_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const OTP_RATE_LIMIT_MAX = 3;
 
-// Load persisted session on boot if available
-try {
-  if (fs.existsSync(SESSION_FILE)) {
-    const raw = fs.readFileSync(SESSION_FILE, "utf-8");
-    const parsed = JSON.parse(raw);
-    if (parsed && parsed.authToken && parsed.userId) {
-      activeSession = parsed;
-      console.log("Loaded persisted JCTSL session (authenticated)");
-    }
-  }
-} catch (err) {
-  console.warn("Could not load persisted session:", err.message);
+if (sessionManager.hasRestoredSession()) {
+  console.log("Loaded a local JCTSL session candidate; provider verification is required before use.");
+} else if (sessionManager.getLastValidationErrorCode() === "INVALID_STORED_SESSION") {
+  console.warn("[JCTSL Auth] Invalid local session file was cleared.");
 }
 
-// Fallback to environment variables if session file not present (ideal for Render/Docker)
-if (!activeSession && process.env.JCTSL_AUTH_TOKEN && process.env.JCTSL_USER_ID) {
-  activeSession = {
+if (!sessionManager.hasRestoredSession() && process.env.JCTSL_AUTH_TOKEN && process.env.JCTSL_USER_ID) {
+  sessionManager.setConfiguredSession({
     authToken: process.env.JCTSL_AUTH_TOKEN,
     userId: process.env.JCTSL_USER_ID,
-    mobile: process.env.JCTSL_MOBILE || "9000090000",
+    mobile: process.env.JCTSL_MOBILE || "",
     user: {
-      mobile: process.env.JCTSL_MOBILE || "9000090000",
-      firstName: process.env.JCTSL_FIRST_NAME || "JBL",
-      lastName: process.env.JCTSL_LAST_NAME || "User",
+      mobile: process.env.JCTSL_MOBILE || "",
+      firstName: process.env.JCTSL_FIRST_NAME || "",
+      lastName: process.env.JCTSL_LAST_NAME || "",
       email: process.env.JCTSL_EMAIL || "",
     },
-  };
-  console.log("Loaded JCTSL session from environment variables.");
+  });
+  console.log("Loaded configured JCTSL credentials from environment.");
 }
 
 function saveSession(session) {
-  activeSession = session;
-  try {
-    if (session) {
-      fs.writeFileSync(SESSION_FILE, JSON.stringify(session, null, 2), "utf-8");
-    } else if (fs.existsSync(SESSION_FILE)) {
-      fs.unlinkSync(SESSION_FILE);
-    }
-  } catch (err) {
-    console.warn("Could not save session file:", err.message);
+  if (session) {
+    sessionManager.saveVerifiedSession(session);
+  } else {
+    sessionManager.logout();
   }
 }
 
-// Cleanup expired pending auth entries older than 10 minutes
-const authCleanupTimer = setInterval(() => {
-  const now = Date.now();
+function prunePendingAuth(now = Date.now()) {
   for (const [mobile, data] of pendingAuthMap.entries()) {
-    if (now - data.timestamp > 10 * 60 * 1000) {
-      pendingAuthMap.delete(mobile);
-    }
+    if (now - data.timestamp > 10 * 60 * 1000) pendingAuthMap.delete(mobile);
   }
-}, 60 * 1000);
-if (authCleanupTimer?.unref) authCleanupTimer.unref();
+}
 
+function allowOtpRequest(ip, mobile, now = Date.now()) {
+  for (const [key, limit] of otpRequestLimits.entries()) {
+    if (limit.expiresAt <= now) otpRequestLimits.delete(key);
+  }
+  const keys = [`ip:${ip || "unknown"}`, `mobile:${mobile}`];
+  if (otpRequestLimits.size + keys.filter((key) => !otpRequestLimits.has(key)).length > 5000) {
+    return false;
+  }
+  if (keys.some((key) => (otpRequestLimits.get(key)?.count || 0) >= OTP_RATE_LIMIT_MAX)) {
+    return false;
+  }
+  for (const key of keys) {
+    const current = otpRequestLimits.get(key);
+    otpRequestLimits.set(key, {
+      count: (current?.count || 0) + 1,
+      expiresAt: current?.expiresAt || now + OTP_RATE_LIMIT_WINDOW_MS,
+    });
+  }
+  return true;
+}
 /*
 |--------------------------------------------------------------------------
 | BASE & HEALTH CHECK
@@ -104,7 +131,7 @@ app.get("/", (req, res) => {
 });
 
 /*
- * Upstream connectivity state — updated by pollJctslTelemetry and handleLiveBuses.
+ * Upstream connectivity state â€” updated by pollJctslTelemetry and handleLiveBuses.
  * Never exposes auth tokens, user IDs, or session secrets.
  */
 const upstreamState = {
@@ -130,11 +157,17 @@ function updateUpstreamFailure(errorCode) {
   upstreamState.consecutiveFailures++;
 }
 
+function getSafeErrorCode(error, fallback = "UPSTREAM_ERROR") {
+  const code = error?.code || error?.cause?.code ||
+    (error?.name === "AbortError" ? "ETIMEDOUT" : fallback);
+  return /^[A-Z0-9_:-]{1,64}$/i.test(String(code)) ? String(code) : fallback;
+}
+
 app.get("/api/health", (req, res) => {
   res.json({
     success: true,
     message: "JBL backend is working",
-    hasActiveSession: !!activeSession,
+    hasActiveSession: sessionManager.hasActiveSession(),
     upstream: {
       reachable: upstreamState.reachable,
       lastSuccessAt: upstreamState.lastSuccessAt,
@@ -143,6 +176,37 @@ app.get("/api/health", (req, res) => {
       consecutiveFailures: upstreamState.consecutiveFailures,
     },
     telemetryCacheSize: telemetryEngine.vehicleStore.size,
+  });
+});
+
+app.get("/api/status", (req, res) => {
+  const summary = telemetryEngine.getSummary();
+  res.json({
+    status: "ok",
+    app: "Jaipur Bus Live",
+    environment: process.env.NODE_ENV || "production",
+    hasActiveSession: sessionManager.hasActiveSession(),
+    upstream: {
+      reachable: upstreamState.reachable,
+      lastSuccessAt: upstreamState.lastSuccessAt,
+      lastFailureAt: upstreamState.lastFailureAt,
+      lastErrorCode: upstreamState.lastErrorCode,
+      consecutiveFailures: upstreamState.consecutiveFailures,
+    },
+    telemetry: {
+      liveVehicles: telemetryEngine.getLiveVehicles().length,
+      lastUpdated: summary.lastUpdated,
+      moving: summary.liveMoving,
+      slow: summary.liveSlow,
+      idle: summary.liveIdle,
+      stopped: summary.liveStopped,
+    },
+    catalogs: {
+      stopsCached: Boolean(busStopsCache?.respData?.length),
+      routesCached: Boolean(availableRoutesCache?.respData?.length),
+      canonicalStopsCount: routeSearchEngine.canonicalBusStops?.length || 0,
+      canonicalRoutesCount: routeSearchEngine.canonicalRoutes?.length || 0,
+    },
   });
 });
 
@@ -155,6 +219,12 @@ app.get("/api/health", (req, res) => {
 |--------------------------------------------------------------------------
 */
 app.get("/api/jctsl-network-diagnostic", async (req, res) => {
+  if (!JCTSL_DIAGNOSTIC_MODE) {
+    return res.status(404).json({
+      success: false,
+      error: { code: "NOT_FOUND" },
+    });
+  }
   try {
     const result = await runJctslNetworkDiagnostic({
       baseUrl: JCTSL_BASE_URL,
@@ -181,7 +251,7 @@ app.get("/api/jctsl-network-diagnostic", async (req, res) => {
 /*
 |--------------------------------------------------------------------------
 | HELPER: AUTH CHECK
-| Supports incoming headers, or automatically attaches backend activeSession.
+| Prefers a complete backend session pair; request headers are a fallback only.
 | Never exposes credentials to client or logs.
 |--------------------------------------------------------------------------
 */
@@ -189,8 +259,12 @@ function getAuthHeaders(req) {
   const headerToken = req?.headers ? req.headers["auth-token"] : null;
   const headerUserId = req?.headers ? req.headers["user-id"] : null;
 
-  const authToken = headerToken || activeSession?.authToken;
-  const userId = headerUserId || activeSession?.userId;
+  const activeSession = sessionManager.getActiveSession();
+  const sessionToken = activeSession?.authToken;
+  const sessionUserId = activeSession?.userId;
+  const hasActiveSession = Boolean(sessionToken && sessionUserId);
+  const authToken = hasActiveSession ? sessionToken : headerToken;
+  const userId = hasActiveSession ? sessionUserId : headerUserId;
 
   if (!authToken || !userId) {
     return null;
@@ -203,6 +277,14 @@ function getAuthHeaders(req) {
     "Auth-token": authToken,
     "User-ID": String(userId),
   };
+}
+
+async function ensureAuthHeaders(req) {
+  if (sessionManager.hasRestoredSession()) {
+    const result = await sessionManager.ensureRestoredSession();
+    if (!result.success) return null;
+  }
+  return getAuthHeaders(req);
 }
 
 function requestJctslOverIpv4({ url, method, headers, body, timeoutMs }) {
@@ -252,6 +334,7 @@ function requestJctslOverIpv4({ url, method, headers, body, timeoutMs }) {
             servername: JCTSL_HOST,
             headers: {
               ...headers,
+              ...(body !== undefined && body !== null ? { "Content-Length": Buffer.byteLength(body) } : {}),
               Host: JCTSL_HOST,
             },
           },
@@ -290,7 +373,7 @@ function requestJctslOverIpv4({ url, method, headers, body, timeoutMs }) {
 /*
 |--------------------------------------------------------------------------
 | RESILIENT UPSTREAM JCTSL FETCH CLIENT
-| - Safe diagnostic logging (URL, method, status, size, error code — ZERO credentials)
+| - Safe diagnostic logging (URL, method, status, size, error code â€” ZERO credentials)
 | - Explicit 12-second AbortController timeout to prevent stuck cloud requests
 | - Mobile client headers (User-Agent: okhttp/4.9.0, Accept: application/json)
 | - Safe non-JSON response handling (never throws SyntaxError on HTML/PHP notices)
@@ -349,7 +432,7 @@ async function jctslFetchOnce(url, { method, mergedHeaders, requestBody, timeout
       isJson = true;
     } catch (parseErr) {
       console.warn(
-        `[JCTSL Upstream Non-JSON] requestId=${requestId} | context=${context} | status=${response.status} | contentType=${contentType} | preview=${rawText.slice(0, 160).replace(/\s+/g, " ")}`
+        `[JCTSL Upstream Non-JSON] requestId=${requestId} | context=${context} | status=${response.status} | contentType=${contentType}`
       );
     }
 
@@ -367,6 +450,10 @@ async function jctslFetchOnce(url, { method, mergedHeaders, requestBody, timeout
   }
 }
 
+function refreshJctslSession() {
+  return Promise.resolve(false);
+}
+
 async function jctslFetch(endpoint, {
   method = "POST",
   headers = {},
@@ -375,12 +462,19 @@ async function jctslFetch(endpoint, {
   context = "general",
   retry = true,
 } = {}) {
-  const cleanEndpoint = endpoint.replace(/^\/+/, "");
-  const url = endpoint.startsWith("http")
-    ? endpoint
-    : `${JCTSL_BASE_URL}${cleanEndpoint}`;
+  const upstreamUrl = new URL(endpoint, JCTSL_BASE_URL);
+  if (upstreamUrl.protocol !== "https:" || upstreamUrl.origin !== parsedBaseUrl.origin) {
+    const invalidUrlError = new Error("JCTSL endpoint must use the configured HTTPS origin");
+    invalidUrlError.code = "INVALID_UPSTREAM_URL";
+    throw invalidUrlError;
+  }
+  const url = upstreamUrl.toString();
 
   const requestId = `jbl-${++requestCounter}-${Date.now().toString(36)}`;
+  const isVercelRuntime = process.env.VERCEL === "1";
+  const effectiveTimeoutMs = isVercelRuntime
+    ? Math.min(timeoutMs, 8000)
+    : timeoutMs;
   const hasAuthToken = Boolean(headers?.["Auth-token"]);
   const hasUserId = Boolean(headers?.["User-ID"]);
 
@@ -409,16 +503,25 @@ async function jctslFetch(endpoint, {
     `[JCTSL Upstream Request] requestId=${requestId} | context=${context} | method=${method} | url=${url} | org_id=${orgId ?? "N/A"} | hasAuthToken=${hasAuthToken} | hasUserId=${hasUserId}`
   );
 
-  const fetchArgs = { method, mergedHeaders, requestBody, timeoutMs, context, requestId };
+  const fetchArgs = {
+    method,
+    mergedHeaders,
+    requestBody,
+    timeoutMs: effectiveTimeoutMs,
+    context,
+    requestId,
+  };
 
   try {
-    return await jctslFetchOnce(url, fetchArgs);
+    const result = await jctslFetchOnce(url, fetchArgs);
+
+    return result;
   } catch (firstErr) {
     const cause = firstErr.cause || {};
-    const errorCode = cause.code || firstErr.code || (firstErr.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
+    const errorCode = getSafeErrorCode(firstErr, "FETCH_ERROR");
 
     // Only retry once for transient network errors, never for auth/logic errors
-    if (retry && TRANSIENT_ERROR_CODES.has(errorCode)) {
+    if (!isVercelRuntime && retry && TRANSIENT_ERROR_CODES.has(errorCode)) {
       console.warn(
         `[JCTSL Retry] requestId=${requestId} | context=${context} | code=${errorCode} | retrying once after 1500ms`
       );
@@ -427,7 +530,7 @@ async function jctslFetch(endpoint, {
       try {
         return await jctslFetchOnce(url, { ...fetchArgs, requestId: `${requestId}-r1` });
       } catch (retryErr) {
-        const retryCode = retryErr.cause?.code || retryErr.code || (retryErr.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
+        const retryCode = getSafeErrorCode(retryErr, "FETCH_ERROR");
         console.error(
           `[JCTSL Retry Failed] requestId=${requestId}-r1 | context=${context} | code=${retryCode}`
         );
@@ -469,13 +572,20 @@ async function jctslFetch(endpoint, {
 */
 app.post("/api/auth/send-otp", async (req, res) => {
   try {
-    const { mobile } = req.body;
+    const { mobile } = req.body || {};
     const cleanMobile = String(mobile || "").replace(/\D/g, "").slice(-10);
 
     if (cleanMobile.length !== 10) {
       return res.status(400).json({
         success: false,
         message: "Please enter a valid 10-digit mobile number",
+      });
+    }
+    if (!allowOtpRequest(req.ip, cleanMobile)) {
+      return res.status(429).json({
+        success: false,
+        message: "Too many OTP requests. Please try again later.",
+        error: { code: "OTP_RATE_LIMITED" },
       });
     }
 
@@ -486,14 +596,16 @@ app.post("/api/auth/send-otp", async (req, res) => {
       req_type: "0",
       country_code: countryCode,
       mobile: cleanMobile,
-      ph_brand: "Google",
-      ph_mdl: "Pixel",
-      os_ver: "14",
-      dev_id: "c8b9d0e1f2a34567",
-      ver_nm: "1.5.1",
-      ver_cd: "30",
-      fcm_token: "",
     };
+    const deviceFields = [
+      "ph_brand", "ph_mdl", "os_ver", "dev_id", "ver_nm", "ver_cd", "fcm_token",
+    ];
+    for (const field of deviceFields) {
+      const value = req.body?.[field] ?? process.env[`JCTSL_${field.toUpperCase()}`];
+      if (typeof value === "string" && value.trim() && value.length <= 256) {
+        loginPayload[field] = value.trim();
+      }
+    }
 
     let logUsrRes = await jctslFetch("log/usr", {
       method: "POST",
@@ -505,57 +617,65 @@ app.post("/api/auth/send-otp", async (req, res) => {
 
     let logUsrData = logUsrRes.isJson ? logUsrRes.data : null;
 
-    // If device mismatch ("1"), APK calls K("1") to confirm device switch
     if (logUsrData?.respData?.dev_mis_flag === "1") {
-      const switchPayload = {
-        ...loginPayload,
-        req_type: "1",
-      };
-
-      logUsrRes = await jctslFetch("log/usr", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: switchPayload,
-        context: "sendOtp-switch",
-        timeoutMs: 12000,
+      return res.status(409).json({
+        success: false,
+        message: "JCTSL requires explicit confirmation to switch the registered device",
+        error: { code: "DEVICE_SWITCH_REQUIRES_CONFIRMATION" },
       });
-
-      logUsrData = logUsrRes.isJson ? logUsrRes.data : null;
     }
 
     const respData = logUsrData?.respData;
-    if (!respData) {
+    if (!logUsrRes.ok || !logUsrRes.isJson || !respData?.authToken || !respData?.userId) {
       return res.status(400).json({
         success: false,
-        message: logUsrData?.respMessage || "Failed to initiate login with JCTSL",
+        message: "JCTSL could not start the OTP verification flow",
       });
     }
 
     let expectedOtp = null;
 
-    // Special test number hardcoded in JCTSL APK (login/c.java line 125)
-    if (cleanMobile === "9000090000") {
-      expectedOtp = "654321";
-    } else if (respData.sst && respData.sen) {
+    if (respData.sst && respData.sen) {
       // Dynamic OTP URL from JCTSL server
-      const otpUrl = `${respData.sst}${countryCode}${cleanMobile}${respData.sen}`;
+      const otpUrl = new URL(`${respData.sst}${countryCode}${cleanMobile}${respData.sen}`);
+      if (otpUrl.protocol !== "https:" || otpUrl.username || otpUrl.password) {
+        return res.status(502).json({
+          success: false,
+          message: "JCTSL returned an unsupported OTP verification URL",
+        });
+      }
 
       try {
-        const otpFetchRes = await fetch(otpUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-        const otpJson = await otpFetchRes.json();
-
-        // If gateway returned an explicit OTP in dev/test mode
-        if (otpJson?.OTP) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        let otpFetchRes;
+        try {
+          otpFetchRes = await fetch(otpUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            redirect: "error",
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeout);
+        }
+        const otpJson = otpFetchRes.ok ? await otpFetchRes.json() : null;
+        if (typeof otpJson?.OTP === "string" || typeof otpJson?.OTP === "number") {
           expectedOtp = String(otpJson.OTP).trim();
         }
       } catch (otpErr) {
-        console.warn("OTP gateway request notice:", otpErr.message);
+        console.warn("[JCTSL OTP] Provider challenge request failed");
       }
+    }
+
+    prunePendingAuth();
+    if (pendingAuthMap.size >= 1000 && !pendingAuthMap.has(cleanMobile)) {
+      return res.status(503).json({
+        success: false,
+        message: "OTP verification is temporarily unavailable",
+      });
     }
 
     // Store pending auth state
@@ -565,20 +685,20 @@ app.post("/api/auth/send-otp", async (req, res) => {
       expectedOtp,
       respData,
       timestamp: Date.now(),
+      failedAttempts: 0,
     });
 
     return res.json({
       success: true,
-      message: `OTP requested for ${cleanMobile}`,
-      mobile: cleanMobile,
-      isTestNumber: cleanMobile === "9000090000",
+      message: "OTP challenge requested",
+      verificationAvailable: expectedOtp !== null,
     });
   } catch (error) {
-    console.error("send-otp error:", error);
+    console.error(`[JCTSL OTP] Request failed (code: ${error.code || "OTP_ERROR"})`);
     return res.status(500).json({
       success: false,
       message: "Error sending OTP through JCTSL",
-      error: error.message,
+      error: { code: error.code || "OTP_ERROR" },
     });
   }
 });
@@ -594,7 +714,7 @@ app.post("/api/auth/send-otp", async (req, res) => {
 */
 app.post("/api/auth/verify-otp", async (req, res) => {
   try {
-    const { mobile, otp } = req.body;
+    const { mobile, otp } = req.body || {};
     const cleanMobile = String(mobile || "").replace(/\D/g, "").slice(-10);
     const cleanOtp = String(otp || "").trim();
 
@@ -613,8 +733,23 @@ app.post("/api/auth/verify-otp", async (req, res) => {
       });
     }
 
-    // If expectedOtp is known (e.g. test number 9000090000 or gateway autogen)
-    if (pending.expectedOtp && pending.expectedOtp !== cleanOtp) {
+    if (Date.now() - pending.timestamp > 10 * 60 * 1000) {
+      pendingAuthMap.delete(cleanMobile);
+      return res.status(400).json({
+        success: false,
+        message: "OTP challenge expired. Please request a new OTP.",
+      });
+    }
+    if (!pending.expectedOtp) {
+      return res.status(503).json({
+        success: false,
+        message: "JCTSL did not provide a verifiable OTP challenge",
+        error: { code: "OTP_VERIFICATION_UNAVAILABLE" },
+      });
+    }
+    if (pending.expectedOtp !== cleanOtp) {
+      pending.failedAttempts++;
+      if (pending.failedAttempts >= 5) pendingAuthMap.delete(cleanMobile);
       return res.status(400).json({
         success: false,
         message: "Invalid OTP. Please check and try again.",
@@ -647,7 +782,7 @@ app.post("/api/auth/verify-otp", async (req, res) => {
       });
     }
 
-    // Verification successful! Establish backend active session & persist
+    // Keep the verified session in memory only; serverless replicas are independent.
     const newSession = {
       authToken: pending.authToken,
       userId: pending.userId,
@@ -666,14 +801,14 @@ app.post("/api/auth/verify-otp", async (req, res) => {
     return res.json({
       success: true,
       message: "Login successful",
-      user: activeSession.user,
+      user: sessionManager.getActiveSession().user,
     });
   } catch (error) {
-    console.error("verify-otp error:", error);
+    console.error(`[JCTSL OTP] Verification failed (code: ${error.code || "OTP_ERROR"})`);
     return res.status(500).json({
       success: false,
       message: "Error verifying OTP",
-      error: error.message,
+      error: { code: error.code || "OTP_ERROR" },
     });
   }
 });
@@ -683,26 +818,48 @@ app.post("/api/auth/verify-otp", async (req, res) => {
 | AUTH: 3. CURRENT SESSION & LOGOUT
 |--------------------------------------------------------------------------
 */
-app.get("/api/auth/session", (req, res) => {
-  if (!activeSession) {
+app.get("/api/auth/session", async (req, res) => {
+  const validation = await sessionManager.ensureRestoredSession();
+  if (!validation.success) {
+    if (validation.persistenceErrorCode) {
+      console.error(
+        `[JCTSL Auth] Rejected session could not be removed (code: ${validation.persistenceErrorCode})`
+      );
+    }
+    const needsAuth = validation.errorCode === "AUTH_REQUIRED" ||
+      validation.errorCode === "INVALID_STORED_SESSION";
     return res.json({
       authenticated: false,
       user: null,
+      error: {
+        code: needsAuth ? "AUTH_REQUIRED" : validation.errorCode,
+        message: needsAuth
+          ? "No valid server-side JCTSL session is available."
+          : "The saved JCTSL session could not be verified with the provider.",
+      },
     });
   }
 
   return res.json({
     authenticated: true,
-    user: activeSession.user,
+    user: null,
   });
 });
 
 app.post("/api/auth/logout", (req, res) => {
-  saveSession(null);
-  return res.json({
-    success: true,
-    message: "Logged out successfully",
-  });
+  try {
+    saveSession(null);
+    return res.json({
+      success: true,
+      message: "Logged out successfully",
+    });
+  } catch (error) {
+    const errorCode = getSafeErrorCode(error, "SESSION_STORE_CLEAR_FAILED");
+    return res.status(500).json({
+      success: false,
+      error: { code: errorCode },
+    });
+  }
 });
 
 /*
@@ -712,7 +869,7 @@ app.post("/api/auth/logout", (req, res) => {
 */
 app.post("/api/cities", async (req, res) => {
   try {
-    const headers = getAuthHeaders(req);
+    const headers = await ensureAuthHeaders(req);
     if (!headers) {
       return res.status(401).json({
         success: false,
@@ -740,18 +897,13 @@ app.post("/api/cities", async (req, res) => {
     return res.status(upstream.status).json(upstream.data);
   } catch (error) {
     const cause = error.cause || {};
-    const errorCode = error.code || cause.code || (error.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
-    console.error(`[Cities Error] ${error.name}: ${error.message} (code: ${errorCode}, cause: ${cause.message || "N/A"})`);
+    const errorCode = getSafeErrorCode(error, "FETCH_ERROR");
+    console.error(`[Cities Error] ${errorCode}`);
     return res.status(500).json({
       success: false,
       message: "Unable to fetch cities",
-      error: error.message,
+      error: { code: errorCode },
       errorCode,
-      errorDetails: {
-        name: error.name,
-        code: errorCode,
-        causeMessage: cause.message || null,
-      },
     });
   }
 });
@@ -764,111 +916,22 @@ app.post("/api/cities", async (req, res) => {
 let busStopsCache = null;
 let availableRoutesCache = null;
 const routeMapCache = new Map();
+const routeSearchEngine = require("./routeSearchEngine");
 
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Earth radius in km
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+  return routeSearchEngine.calculateDistanceKm(lat1, lon1, lat2, lon2);
 }
 
-const cleanRouteCode = (str) =>
-  String(str || "")
-    .toLowerCase()
-    .trim()
-    .replace(/[-\s]/g, "");
-
-const cleanText = (str) =>
-  String(str || "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]/g, "");
+const cleanRouteCode = (str) => routeSearchEngine.cleanRouteCode(str);
+const cleanText = (str) => routeSearchEngine.cleanText(str);
 
 function resolveStop(input, allStops) {
-  if (!input || !Array.isArray(allStops)) return null;
-  const raw = String(input).trim();
-  const rawLower = raw.toLowerCase();
-  const cleanIn = cleanText(raw);
-
-  // 1. Exact match on bus_stop_code (e.g. "KEMOD", "AJG")
-  let match = allStops.find(
-    (s) => String(s.bus_stop_code || "").trim().toLowerCase() === rawLower
-  );
-  if (match) return match;
-
-  // 2. Exact match on bus_stop_id
-  match = allStops.find((s) => String(s.bus_stop_id) === raw);
-  if (match) return match;
-
-  // 3. Exact clean text match on bus_stop_name
-  match = allStops.find((s) => cleanText(s.bus_stop_name) === cleanIn);
-  if (match) return match;
-
-  // 4. Substring / contains match
-  match = allStops.find((s) => {
-    const sClean = cleanText(s.bus_stop_name);
-    return sClean.includes(cleanIn) || cleanIn.includes(sClean);
-  });
-  return match || null;
+  return routeSearchEngine.resolveStop(input, allStops || busStopsCache?.respData);
 }
 
 function findStopIndexInRoute(orderedStops, targetStop, minIndex = 0) {
-  if (!targetStop || !Array.isArray(orderedStops)) return -1;
-  const tName = cleanText(targetStop.bus_stop_name || targetStop.bus_stop || "");
-  const tCode = cleanText(targetStop.bus_stop_code || "");
-  const tLat = parseFloat(targetStop.latitude);
-  const tLng = parseFloat(targetStop.longitude);
-
-  // 1. Exact name match (highest priority)
-  for (let i = minIndex; i < orderedStops.length; i++) {
-    const sName = cleanText(orderedStops[i].bus_stop || orderedStops[i].bus_stop_name || "");
-    if (sName && tName && sName === tName) return i;
-  }
-
-  // 2. Exact code match
-  if (tCode) {
-    for (let i = minIndex; i < orderedStops.length; i++) {
-      const sName = cleanText(orderedStops[i].bus_stop || orderedStops[i].bus_stop_name || "");
-      if (sName === tCode || sName.startsWith(tCode) || sName.endsWith(tCode)) return i;
-    }
-  }
-
-  // 3. Substring match (name contains name)
-  if (tName.length >= 4) {
-    for (let i = minIndex; i < orderedStops.length; i++) {
-      const sName = cleanText(orderedStops[i].bus_stop || orderedStops[i].bus_stop_name || "");
-      if (sName.length >= 4 && (sName.includes(tName) || tName.includes(sName))) return i;
-    }
-  }
-
-  // 4. Tight proximity fallback (< 150m) only if no name match
-  if (!isNaN(tLat) && !isNaN(tLng) && tLat !== 0 && tLng !== 0) {
-    let closestIdx = -1;
-    let closestDist = 0.15; // 150m max
-    for (let i = minIndex; i < orderedStops.length; i++) {
-      const sLat = parseFloat(orderedStops[i].latitude);
-      const sLng = parseFloat(orderedStops[i].longitude);
-      if (!isNaN(sLat) && !isNaN(sLng) && sLat !== 0) {
-        const d = calculateDistanceKm(sLat, sLng, tLat, tLng);
-        if (d < closestDist) {
-          closestDist = d;
-          closestIdx = i;
-        }
-      }
-    }
-    if (closestIdx !== -1) return closestIdx;
-  }
-
-  return -1;
+  return routeSearchEngine.findStopIndexInRoute(orderedStops, targetStop, minIndex);
 }
-
 /*
 |--------------------------------------------------------------------------
 | REUSABLE STRICT ROUTE VALIDATION ENGINE: findValidRoutesBetweenStops
@@ -887,19 +950,28 @@ async function findValidRoutesBetweenStops(
   filterRoute = null,
   headers = null
 ) {
-  if (!headers) headers = getAuthHeaders();
-  if (!headers) {
-    return {
-      success: false,
-      count: 0,
-      routes: [],
-      message: "Login required for live JCTSL data",
-      requiresAuth: true,
-    };
+  // Use real live vehicles from telemetryEngine
+  let cityBuses = telemetryEngine.getLiveVehicles();
+  if (cityBuses.length === 0) {
+    if (!headers) headers = await ensureAuthHeaders();
+    if (headers) {
+      try {
+        const cbRes = await jctslFetch("allvehloc", {
+          method: "POST",
+          headers,
+          body: { org_id: "1" },
+          context: "findValidRoutes-allvehloc",
+          timeoutMs: 12000,
+        });
+        if (cbRes.isJson && Array.isArray(cbRes.data?.respData)) {
+          cityBuses = cbRes.data.respData;
+        }
+      } catch (_) {}
+    }
   }
 
-  // Ensure stops cache
-  if (!busStopsCache) {
+  // Ensure stops cache if available
+  if (!busStopsCache && headers) {
     try {
       const res = await jctslFetch("usr/citibuslist", {
         method: "POST",
@@ -912,231 +984,15 @@ async function findValidRoutesBetweenStops(
     } catch (_) {}
   }
 
-  // Ensure routes cache
-  if (!availableRoutesCache) {
-    try {
-      const res = await jctslFetch("Log/getAvailableroutes", {
-        method: "POST",
-        headers,
-        body: { city_id: "1" },
-        context: "findValidRoutes-routes",
-        timeoutMs: 12000,
-      });
-      if (res.isJson && res.data?.respCode === "200") availableRoutesCache = res.data;
-    } catch (_) {}
-  }
-
-  const allStops = busStopsCache?.respData || [];
-  const allRoutes = availableRoutesCache?.respData || [];
-
-  const fromStop = resolveStop(fromQuery, allStops);
-  const toStop = resolveStop(toQuery, allStops);
-
-  if (!fromStop || !toStop) {
-    return {
-      success: false,
-      count: 0,
-      from_stop: fromStop,
-      to_stop: toStop,
-      routes: [],
-      message: "Could not resolve From/To bus stops in JCTSL database",
-    };
-  }
-
-  // 1. Candidate routes: If filterRoute is specified, filter by EXACT route number first!
-  const candidateRoutes = allRoutes.filter((r) => {
-    if (!filterRoute) return true;
-    const qCode = cleanRouteCode(filterRoute);
-    const rCode = cleanRouteCode(r.route_orgno);
-    const idCode = cleanRouteCode(r.route_id);
-    return rCode === qCode || idCode === qCode;
+  return routeSearchEngine.searchRoutesBetweenStops({
+    from: fromQuery,
+    to: toQuery,
+    filterRoute,
+    liveBuses: cityBuses,
+    allStops: busStopsCache?.respData || routeSearchEngine.canonicalBusStops,
+    allRoutes: routeSearchEngine.canonicalRoutes,
   });
-
-  // Fetch live city buses once
-  let cityBuses = [];
-  try {
-    const cbRes = await jctslFetch("allvehloc", {
-      method: "POST",
-      headers,
-      body: { org_id: "1" },
-      context: "findValidRoutes-allvehloc",
-      timeoutMs: 12000,
-    });
-    if (cbRes.isJson && Array.isArray(cbRes.data?.respData)) cityBuses = cbRes.data.respData;
-  } catch (_) {}
-
-  const validRoutes = [];
-
-  for (const r of candidateRoutes) {
-    const routeId = String(r.route_id).trim();
-    let mapData = routeMapCache.get(routeId);
-
-    if (!mapData) {
-      try {
-        const mRes = await jctslFetch("rt/bspdtl", {
-          method: "POST",
-          headers,
-          body: { route_no: routeId, vehicle_number: "" },
-          context: "findValidRoutes-bspdtl",
-          timeoutMs: 12000,
-        });
-        if (mRes.isJson && mRes.data?.respCode === "200") {
-          mapData = mRes.data;
-          routeMapCache.set(routeId, mapData);
-        }
-      } catch (_) {
-        continue;
-      }
-    }
-
-    const orderedStops = mapData?.respData?.bus_stop_list || [];
-    if (orderedStops.length === 0) continue;
-
-    const fromIndex = findStopIndexInRoute(orderedStops, fromStop, 0);
-    if (fromIndex === -1) continue;
-
-    const toIndex = findStopIndexInRoute(orderedStops, toStop, fromIndex + 1);
-    if (toIndex === -1 || fromIndex >= toIndex) continue;
-
-    // Strict validation passed!
-    // Fetch live upcoming buses assigned by JCTSL specifically to this route & direction
-    const routeBusesMap = new Map();
-
-    try {
-      const liveRes = await jctslFetch("rt/rvsearching", {
-        method: "POST",
-        headers,
-        body: { route_id: routeId },
-        context: "findValidRoutes-rvsearching",
-        timeoutMs: 12000,
-      });
-      const liveData = liveRes.isJson ? liveRes.data : null;
-
-      if (Array.isArray(liveData?.respData?.route)) {
-        liveData.respData.route.forEach((st) => {
-          if (Array.isArray(st.upcomingbuses)) {
-            st.upcomingbuses.forEach((b) => {
-              const vNo = String(
-                b.vehicel_no || b.vehicle_no || b.vehNo || ""
-              ).trim();
-              if (vNo && !routeBusesMap.has(vNo)) {
-                const bLat = parseFloat(b.latitude);
-                const bLng = parseFloat(b.longitude);
-
-                let nearestIdx = -1;
-                let minDist = Infinity;
-                for (let k = 0; k < orderedStops.length; k++) {
-                  const sLat = parseFloat(orderedStops[k].latitude);
-                  const sLng = parseFloat(orderedStops[k].longitude);
-                  if (!isNaN(sLat) && !isNaN(sLng)) {
-                    const d = calculateDistanceKm(bLat, bLng, sLat, sLng);
-                    if (d < minDist) {
-                      minDist = d;
-                      nearestIdx = k;
-                    }
-                  }
-                }
-
-                routeBusesMap.set(vNo, {
-                  vehicle_number: vNo,
-                  latitude: bLat,
-                  longitude: bLng,
-                  speed: b.speed || null,
-                  eta: b.eta && b.eta !== vNo ? b.eta : null,
-                  current_stop:
-                    nearestIdx >= 0 ? orderedStops[nearestIdx].bus_stop : null,
-                  next_stop:
-                    nearestIdx >= 0 && nearestIdx < orderedStops.length - 1
-                      ? orderedStops[nearestIdx + 1].bus_stop
-                      : null,
-                  nearest_index: nearestIdx,
-                  is_approaching_from_stop: nearestIdx <= fromIndex,
-                  status: "Live",
-                });
-              }
-            });
-          }
-        });
-      }
-    } catch (_) {}
-
-    // Also match live city buses broadcasting this route's exact org number (e.g. b.rno === "6A")
-    const cleanOrg = cleanRouteCode(r.route_orgno);
-    cityBuses.forEach((cb) => {
-      const cbRno = cleanRouteCode(cb.rno);
-      const vNo = String(cb.vehno || "").trim();
-      if (vNo && cbRno === cleanOrg && !routeBusesMap.has(vNo)) {
-        const bLat = parseFloat(cb.curlat);
-        const bLng = parseFloat(cb.curlong);
-
-        let nearestIdx = -1;
-        let minDist = Infinity;
-        for (let k = 0; k < orderedStops.length; k++) {
-          const sLat = parseFloat(orderedStops[k].latitude);
-          const sLng = parseFloat(orderedStops[k].longitude);
-          if (!isNaN(sLat) && !isNaN(sLng)) {
-            const d = calculateDistanceKm(bLat, bLng, sLat, sLng);
-            if (d < minDist) {
-              minDist = d;
-              nearestIdx = k;
-            }
-          }
-        }
-
-        routeBusesMap.set(vNo, {
-          vehicle_number: vNo,
-          latitude: bLat,
-          longitude: bLng,
-          speed: null,
-          eta: null,
-          current_stop:
-            nearestIdx >= 0 ? orderedStops[nearestIdx].bus_stop : null,
-          next_stop:
-            nearestIdx >= 0 && nearestIdx < orderedStops.length - 1
-              ? orderedStops[nearestIdx + 1].bus_stop
-              : null,
-          nearest_index: nearestIdx,
-          is_approaching_from_stop: nearestIdx <= fromIndex,
-          status: "Live",
-        });
-      }
-    });
-
-    const liveBuses = Array.from(routeBusesMap.values());
-
-    validRoutes.push({
-      route_id: r.route_id,
-      route_orgno: r.route_orgno,
-      route_name: r.route_name,
-      route_type: r.route_type || "Regular",
-      from_stop_matched: orderedStops[fromIndex].bus_stop,
-      from_stop_code: fromStop.bus_stop_code,
-      from_stop_index: fromIndex,
-      to_stop_matched: orderedStops[toIndex].bus_stop,
-      to_stop_code: toStop.bus_stop_code,
-      to_stop_index: toIndex,
-      intermediate_stops_count: toIndex - fromIndex + 1,
-      total_route_stops: orderedStops.length,
-      traversal_stops: orderedStops.slice(fromIndex, toIndex + 1),
-      all_stops: orderedStops,
-      live_buses: liveBuses,
-      live_buses_count: liveBuses.length,
-    });
-  }
-
-  return {
-    success: true,
-    from_stop: fromStop,
-    to_stop: toStop,
-    count: validRoutes.length,
-    routes: validRoutes,
-    message:
-      validRoutes.length > 0
-        ? `${validRoutes.length} direct JCTSL route(s) found`
-        : "No direct JCTSL route found",
-  };
 }
-
 /*
 |--------------------------------------------------------------------------
 | 2. REAL JCTSL BUS STOPS DATASET (POST/GET usr/citibuslist)
@@ -1144,62 +1000,99 @@ async function findValidRoutesBetweenStops(
 */
 const handleBusStops = async (req, res) => {
   try {
-    const headers = getAuthHeaders(req);
-    if (!headers) {
-      return res.status(401).json({
+    const cityUrl = req.query?.city_url || req.body?.city_url || JCTSL_BASE_URL;
+    if (typeof cityUrl !== "string") {
+      return res.status(400).json({
         success: false,
-        message: "Login required for live JCTSL data",
-        requiresAuth: true,
+        message: "Invalid city_url",
+      });
+    }
+    let targetBase;
+    try {
+      targetBase = new URL(cityUrl, JCTSL_BASE_URL);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid city_url",
+      });
+    }
+    if (targetBase.protocol !== "https:" ||
+        targetBase.origin !== parsedBaseUrl.origin ||
+        targetBase.username || targetBase.password) {
+      return res.status(400).json({
+        success: false,
+        message: "city_url must use the configured JCTSL HTTPS origin",
+      });
+    }
+    if (!targetBase.pathname.endsWith("/")) {
+      targetBase.pathname += "/";
+    }
+
+    if (busStopsCache && Array.isArray(busStopsCache.respData) && busStopsCache.respData.length > 0) {
+      return res.json({
+        ...busStopsCache,
+        success: true,
+        dataAvailable: true,
+        isCached: true,
       });
     }
 
-    if (busStopsCache) {
-      return res.json(busStopsCache);
-    }
+    const headers = await ensureAuthHeaders(req);
+    if (headers) {
+      const city_id = req.query?.city_id || req.body?.city_id || "1";
+      const targetUrl = new URL("usr/citibuslist", targetBase).toString();
 
-    const city_id = req.query?.city_id || req.body?.city_id || "1";
-    const city_url = req.query?.city_url || req.body?.city_url;
-    const targetBase = city_url
-      ? (city_url.endsWith("/") ? city_url : `${city_url}/`)
-      : JCTSL_BASE_URL;
-
-    const targetUrl = `${targetBase}usr/citibuslist`;
-
-    const upstream = await jctslFetch(targetUrl, {
-      method: "POST",
-      headers,
-      body: { city_id: String(city_id) },
-      context: "handleBusStops",
-      timeoutMs: 12000,
-    });
-
-    if (!upstream.isJson || !upstream.data) {
-      return res.status(upstream.ok ? 200 : 502).json({
-        respCode: "0",
-        respMessage: "Upstream JCTSL service returned non-JSON response",
-        upstreamStatus: upstream.status,
+      const upstream = await jctslFetch(targetUrl, {
+        method: "POST",
+        headers,
+        body: { city_id: String(city_id) },
+        context: "handleBusStops",
+        timeoutMs: 12000,
       });
+
+      if (upstream.ok && upstream.isJson && upstream.data?.respCode === "200" && Array.isArray(upstream.data?.respData)) {
+        updateUpstreamSuccess();
+        busStopsCache = {
+          ...upstream.data,
+          success: true,
+          dataAvailable: true,
+          isFallback: false,
+          isCached: false,
+          upstreamReachable: true,
+          timestamp: new Date().toISOString(),
+        };
+        return res.json(busStopsCache);
+      }
+      updateUpstreamFailure(upstream.isJson ? "UPSTREAM_RESPONSE_INVALID" : "NON_JSON_RESPONSE");
     }
 
-    const data = upstream.data;
-    if (upstream.ok && data?.respCode === "200") {
-      busStopsCache = data;
-    }
-    return res.status(upstream.status).json(data);
+    // Graceful fallback: Canonical bus stops dataset from backend/data/busStops.json
+    console.warn("[Bus Stops] Serving canonical bus stops catalog");
+    const fallbackData = {
+      success: true,
+      dataAvailable: routeSearchEngine.canonicalBusStops.length > 0,
+      respCode: "200",
+      respMessage: "Success",
+      isFallback: true,
+      isCached: false,
+      upstreamReachable: upstreamState.reachable,
+      timestamp: new Date().toISOString(),
+      respData: routeSearchEngine.canonicalBusStops,
+    };
+    return res.json(fallbackData);
   } catch (error) {
-    const cause = error.cause || {};
-    const errorCode = error.code || cause.code || (error.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
-    console.error(`[Bus Stops Error] ${error.name}: ${error.message} (code: ${errorCode}, cause: ${cause.message || "N/A"})`);
-    return res.status(500).json({
-      success: false,
-      message: "Unable to fetch bus stops",
-      error: error.message,
-      errorCode,
-      errorDetails: {
-        name: error.name,
-        code: errorCode,
-        causeMessage: cause.message || null,
-      },
+    console.error(`[Bus Stops Error] ${error.code || "UPSTREAM_ERROR"}`);
+    updateUpstreamFailure(error.code || "UPSTREAM_ERROR");
+    return res.json({
+      success: true,
+      dataAvailable: routeSearchEngine.canonicalBusStops.length > 0,
+      respCode: "200",
+      respMessage: "Success",
+      isFallback: true,
+      isCached: false,
+      upstreamReachable: false,
+      timestamp: new Date().toISOString(),
+      respData: routeSearchEngine.canonicalBusStops,
     });
   }
 };
@@ -1214,15 +1107,6 @@ app.post("/api/bus-stops", handleBusStops);
 */
 const handleBusesNearStop = async (req, res) => {
   try {
-    const headers = getAuthHeaders(req);
-    if (!headers) {
-      return res.status(401).json({
-        success: false,
-        message: "Login required for live JCTSL data",
-        requiresAuth: true,
-      });
-    }
-
     const stopCode =
       req.params?.stopCode ||
       req.query?.stop_code ||
@@ -1237,41 +1121,62 @@ const handleBusesNearStop = async (req, res) => {
       });
     }
 
-    const upstream = await jctslFetch("log/vehnearstop", {
-      method: "POST",
-      headers,
-      body: {
-        bus_stop_cd: String(stopCode),
-        ver_nm: "1.5.1",
-        ver_cd: "30",
-      },
-      context: "handleBusesNearStop",
-      timeoutMs: 12000,
-    });
-
-    if (!upstream.isJson || !upstream.data) {
-      return res.status(upstream.ok ? 200 : 502).json({
-        respCode: "0",
-        respMessage: "Upstream JCTSL service returned non-JSON response",
-        upstreamStatus: upstream.status,
+    const headers = await ensureAuthHeaders(req);
+    if (headers) {
+      const upstream = await jctslFetch("log/vehnearstop", {
+        method: "POST",
+        headers,
+        body: {
+          bus_stop_cd: String(stopCode),
+          ver_nm: "1.5.1",
+          ver_cd: "30",
+        },
+        context: "handleBusesNearStop",
+        timeoutMs: 12000,
       });
+
+      if (upstream.ok && upstream.isJson && upstream.data) {
+        updateUpstreamSuccess();
+        return res.status(upstream.status).json({
+          ...upstream.data,
+          success: true,
+          dataAvailable: true,
+          isFallback: false,
+          isCached: false,
+          upstreamReachable: true,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      updateUpstreamFailure(upstream.isJson ? "UPSTREAM_HTTP_ERROR" : "NON_JSON_RESPONSE");
     }
 
-    return res.status(upstream.status).json(upstream.data);
-  } catch (error) {
-    const cause = error.cause || {};
-    const errorCode = error.code || cause.code || (error.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
-    console.error(`[Buses Near Stop Error] ${error.name}: ${error.message} (code: ${errorCode}, cause: ${cause.message || "N/A"})`);
-    return res.status(500).json({
+    return res.status(503).json({
       success: false,
-      message: "Unable to fetch buses for selected stop",
-      error: error.message,
-      errorCode,
-      errorDetails: {
-        name: error.name,
-        code: errorCode,
-        causeMessage: cause.message || null,
-      },
+      dataAvailable: false,
+      respCode: "0",
+      respMessage: "Live JCTSL data for this stop is unavailable",
+      isFallback: false,
+      isCached: false,
+      upstreamReachable: false,
+      timestamp: new Date().toISOString(),
+      error: { code: headers ? "UPSTREAM_UNAVAILABLE" : "AUTH_REQUIRED" },
+      respData: { buses: [] },
+    });
+  } catch (error) {
+    const errorCode = getSafeErrorCode(error);
+    console.error(`[Buses Near Stop Error] ${errorCode}`);
+    updateUpstreamFailure(errorCode);
+    return res.status(502).json({
+      success: false,
+      dataAvailable: false,
+      respCode: "0",
+      respMessage: "Unable to fetch live buses for this stop",
+      isFallback: false,
+      isCached: false,
+      upstreamReachable: false,
+      timestamp: new Date().toISOString(),
+      error: { code: errorCode },
+      respData: { buses: [] },
     });
   }
 };
@@ -1285,113 +1190,244 @@ app.post("/api/buses-near-stop", handleBusesNearStop);
 | 4. LIVE ALL BUSES (POST/GET allvehloc)
 |--------------------------------------------------------------------------
 */
+const liveBusFetchPromises = new Map();
+let lastLiveBusFetchTimestamp = 0;
+let pollerAuthWarningLogged = false;
+
+function parseLiveBusResponse(upstream) {
+  const responseCode = String(upstream?.data?.respCode || "");
+  const responseMessage = String(upstream?.data?.respMessage || "");
+  const authRejected = upstream?.status === 401 ||
+    responseCode === "401" ||
+    /session.*expired|unauthor/i.test(responseMessage);
+  if (authRejected) {
+    return { success: false, errorCode: "AUTH_SESSION_EXPIRED" };
+  }
+
+  if (!upstream?.ok) {
+    return {
+      success: false,
+      errorCode: upstream?.isJson ? "UPSTREAM_HTTP_ERROR" : "NON_JSON_RESPONSE",
+    };
+  }
+  if (!upstream.isJson || !upstream.data) {
+    return { success: false, errorCode: "NON_JSON_RESPONSE" };
+  }
+
+  const data = upstream.data;
+  const vehicles = Array.isArray(data.respData)
+    ? data.respData
+    : Array.isArray(data)
+      ? data
+      : null;
+  if (!vehicles || (data.respCode != null && String(data.respCode) !== "200")) {
+    return {
+      success: false,
+      errorCode: String(data.respCode || "") === "401"
+        ? "AUTH_SESSION_EXPIRED"
+        : "INVALID_UPSTREAM_RESPONSE",
+    };
+  }
+  return { success: true, data, vehicles };
+}
+
+async function fetchLiveBusesFromUpstream(headers, orgId = "1", context = "handleLiveBuses") {
+  return jctslFetch("allvehloc", {
+    method: "POST",
+    headers,
+    body: { org_id: String(orgId) },
+    context,
+    timeoutMs: 12000,
+  });
+}
+
+async function verifyRestoredJctslSession(candidate) {
+  const headers = {
+    "User-Agent": "okhttp/4.9.0",
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    "Auth-token": candidate.authToken,
+    "User-ID": candidate.userId,
+  };
+  const upstream = await fetchLiveBusesFromUpstream(
+    headers,
+    "1",
+    "restoreSessionValidation"
+  );
+  const parsed = parseLiveBusResponse(upstream);
+  if (!parsed.success) {
+    updateUpstreamFailure(parsed.errorCode);
+    return {
+      success: false,
+      rejected: parsed.errorCode === "AUTH_SESSION_EXPIRED",
+      errorCode: parsed.errorCode,
+    };
+  }
+
+  telemetryEngine.processTelemetry(parsed.vehicles);
+  lastLiveBusFetchTimestamp = Date.now();
+  updateUpstreamSuccess();
+  return { success: true };
+}
+
+function invalidateSessionAfterAuthRejection(errorCode) {
+  if (errorCode === "AUTH_SESSION_EXPIRED" && sessionManager.hasActiveSession()) {
+    sessionManager.invalidate();
+  }
+}
+
+function fetchLiveBusesWithDeduplication(
+  headers,
+  orgId = "1",
+  context = "handleLiveBuses"
+) {
+  const authFingerprint = createHash("sha256")
+    .update(String(headers["Auth-token"]))
+    .update("\0")
+    .update(String(headers["User-ID"]))
+    .digest("hex");
+  const key = `${String(orgId)}:${authFingerprint}`;
+  const existingRequest = liveBusFetchPromises.get(key);
+  if (existingRequest) return existingRequest;
+
+  const request = fetchLiveBusesFromUpstream(headers, orgId, context).finally(() => {
+    if (liveBusFetchPromises.get(key) === request) {
+      liveBusFetchPromises.delete(key);
+    }
+  });
+  liveBusFetchPromises.set(key, request);
+  return request;
+}
+
+function respondWithLiveBusFailure(res, {
+  errorCode = "UPSTREAM_UNAVAILABLE",
+  upstreamStatus = null,
+  requestId = null,
+} = {}) {
+  const cachedVehicles = telemetryEngine.getLiveVehicles();
+  const summary = telemetryEngine.getSummary();
+  const hasRealCache = cachedVehicles.length > 0 && summary.lastUpdated !== null;
+  const timestamp = new Date().toISOString();
+
+  if (hasRealCache) {
+    return res.status(200).json({
+      success: true,
+      dataAvailable: true,
+      respCode: "200",
+      respMessage: "JCTSL is unavailable; serving cached real telemetry",
+      upstreamReachable: false,
+      isFallback: false,
+      isCached: true,
+      timestamp,
+      cacheTimestamp: summary.lastUpdated,
+      upstreamStatus,
+      errorCode,
+      requestId,
+      summary,
+      respData: cachedVehicles,
+    });
+  }
+
+  return res.status(503).json({
+    success: false,
+    dataAvailable: false,
+    respCode: "0",
+    respMessage: errorCode === "AUTH_REQUIRED"
+      ? "No active server-side JCTSL session is available; complete authorized authentication."
+      : errorCode === "AUTH_SESSION_EXPIRED"
+        ? "JCTSL did not accept the active session; complete authorized authentication."
+        : "Live JCTSL telemetry is unavailable",
+    upstreamReachable: false,
+    isFallback: false,
+    isCached: false,
+    timestamp,
+    cacheTimestamp: null,
+    upstreamStatus,
+    error: { code: errorCode },
+    errorCode,
+    requestId,
+    summary,
+    respData: [],
+  });
+}
+
 const handleLiveBuses = async (req, res) => {
   try {
-    const headers = getAuthHeaders(req);
-    if (!headers) {
-      console.warn("[Live Buses] Request rejected: No active session or auth headers available");
-      return res.status(401).json({
-        success: false,
-        message: "Login required for live JCTSL data. No active session or Auth-token found.",
-        requiresAuth: true,
-      });
-    }
-
     const org_id = req.query?.org_id || req.body?.org_id || "1";
+    const now = Date.now();
+    const cacheAge = now - lastLiveBusFetchTimestamp;
 
-    const upstream = await jctslFetch("allvehloc", {
-      method: "POST",
-      headers,
-      body: { org_id: String(org_id) },
-      context: "handleLiveBuses",
-      timeoutMs: 12000,
-    });
-
-    if (!upstream.isJson || !upstream.data) {
-      updateUpstreamFailure("NON_JSON_RESPONSE");
-      console.warn("[Live Buses] Upstream returned non-JSON. Checking telemetry cache.");
-      const cachedVehicles = telemetryEngine.getLiveVehicles();
-      const summary = telemetryEngine.getSummary();
-      const hasRealCache = Array.isArray(cachedVehicles) && cachedVehicles.length > 0 && summary.lastUpdated !== null;
-
-      if (hasRealCache) {
-        return res.json({
-          respCode: "200",
-          respMessage: "Upstream JCTSL returned non-JSON response; serving cached telemetry",
-          upstreamStatus: upstream.status,
-          upstreamReachable: false,
-          isCached: true,
-          cacheTimestamp: summary.lastUpdated,
-          summary,
-          respData: cachedVehicles,
-        });
-      }
-
-      return res.status(503).json({
-        success: false,
-        message: "JCTSL upstream service returned non-JSON response and no cached telemetry exists",
-        errorCode: "UPSTREAM_UNAVAILABLE",
-        upstreamStatus: upstream.status,
-        upstreamReachable: false,
+    // Serverless optimization: If polled within last 15s and have vehicles, serve immediately
+    const existingVehicles = telemetryEngine.getLiveVehicles();
+    const existingSummary = telemetryEngine.getSummary();
+    if (cacheAge < 15000 && existingVehicles.length > 0) {
+      return res.json({
+        success: true,
+        dataAvailable: true,
+        respCode: "200",
+        respMessage: "Success",
+        upstreamReachable: upstreamState.reachable === true,
+        isFallback: false,
+        isCached: true,
+        timestamp: new Date().toISOString(),
+        cacheTimestamp: existingSummary.lastUpdated,
+        summary: existingSummary,
+        respData: existingVehicles,
       });
     }
 
-    const data = upstream.data;
-    const rawVehicles = Array.isArray(data?.respData)
-      ? data.respData
-      : Array.isArray(data)
-      ? data
-      : [];
+    let headers = await ensureAuthHeaders(req);
+    if (!headers) {
+      const validationError = sessionManager.getLastValidationErrorCode();
+      const errorCode =
+        validationError &&
+        validationError !== "AUTH_REQUIRED" &&
+        validationError !== "INVALID_STORED_SESSION"
+          ? validationError
+          : "AUTH_REQUIRED";
+      return respondWithLiveBusFailure(res, { errorCode });
+    }
+
+    const upstream = await fetchLiveBusesWithDeduplication(headers, org_id);
+
+    const parsedResponse = parseLiveBusResponse(upstream);
+    if (!parsedResponse.success) {
+      const { errorCode } = parsedResponse;
+      invalidateSessionAfterAuthRejection(errorCode);
+      updateUpstreamFailure(errorCode);
+      return respondWithLiveBusFailure(res, {
+        errorCode: errorCode === "AUTH_SESSION_EXPIRED" ? "AUTH_REQUIRED" : errorCode,
+        upstreamStatus: upstream.status,
+      });
+    }
+
+    const { data, vehicles: rawVehicles } = parsedResponse;
 
     const { summary, vehicles } = telemetryEngine.processTelemetry(rawVehicles);
     updateUpstreamSuccess();
+    lastLiveBusFetchTimestamp = Date.now();
 
-    return res.status(upstream.status).json({
+    return res.json({
+      success: true,
+      dataAvailable: true,
       respCode: data?.respCode || "200",
       respMessage: data?.respMessage || "Success",
       upstreamReachable: true,
+      isFallback: false,
       isCached: false,
+      timestamp: new Date().toISOString(),
       summary,
       respData: vehicles,
     });
   } catch (error) {
     const cause = error.cause || {};
-    const errorCode = error.code || cause.code || (error.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
+    const errorCode = getSafeErrorCode(error, "FETCH_ERROR");
     const requestId = error.requestId || null;
     updateUpstreamFailure(errorCode);
 
-    console.error(`[Live Buses Error] ${error.name}: ${error.message} (code: ${errorCode}, requestId: ${requestId || "N/A"})`);
+    console.error(`[Live Buses Error] ${error.name}: ${error.message} (code: ${errorCode})`);
 
-    const cachedVehicles = telemetryEngine.getLiveVehicles();
-    const summary = telemetryEngine.getSummary();
-    const hasRealCache = Array.isArray(cachedVehicles) && cachedVehicles.length > 0 && summary.lastUpdated !== null;
-
-    if (hasRealCache) {
-      return res.json({
-        respCode: "200",
-        respMessage: "JCTSL upstream unreachable; serving cached real telemetry",
-        upstreamReachable: false,
-        isCached: true,
-        cacheTimestamp: summary.lastUpdated,
-        errorCode,
-        requestId,
-        summary,
-        respData: cachedVehicles,
-      });
-    }
-
-    return res.status(503).json({
-      success: false,
-      message: "JCTSL upstream service currently unreachable and no cached telemetry exists",
-      errorCode,
-      requestId,
-      errorDetails: {
-        name: error.name,
-        code: errorCode,
-        url: error.url || "allvehloc",
-      },
-      upstreamReachable: false,
-    });
+    return respondWithLiveBusFailure(res, { errorCode, requestId });
   }
 };
 
@@ -1405,35 +1441,38 @@ app.get("/api/live-buses/summary", (req, res) => {
   });
 });
 
-// Periodic background telemetry refresher (every 25 seconds)
+// Local persistent-server poller only; Vercel uses request-driven fetches.
 async function pollJctslTelemetry() {
   try {
-    const headers = getAuthHeaders();
-    if (!headers) return;
+    let headers = await ensureAuthHeaders();
+    if (!headers) {
+      if (!pollerAuthWarningLogged) {
+        const errorCode = sessionManager.getLastValidationErrorCode() || "AUTH_REQUIRED";
+        console.warn(
+          `[Background Poller] Skipped: JCTSL session is unavailable (${errorCode})`
+        );
+        pollerAuthWarningLogged = true;
+      }
+      return;
+    }
+    pollerAuthWarningLogged = false;
 
-    const upstream = await jctslFetch("allvehloc", {
-      method: "POST",
+    const upstream = await fetchLiveBusesWithDeduplication(
       headers,
-      body: { org_id: "1" },
-      context: "backgroundPoll",
-      timeoutMs: 12000,
-    });
+      "1",
+      "backgroundPoll"
+    );
 
-    if (!upstream.isJson || !upstream.data) {
-      updateUpstreamFailure("NON_JSON_RESPONSE");
+    const parsedResponse = parseLiveBusResponse(upstream);
+    if (!parsedResponse.success) {
+      invalidateSessionAfterAuthRejection(parsedResponse.errorCode);
+      updateUpstreamFailure(parsedResponse.errorCode);
       return;
     }
 
-    const data = upstream.data;
-    const rawVehicles = Array.isArray(data?.respData)
-      ? data.respData
-      : Array.isArray(data)
-      ? data
-      : [];
-
-    if (rawVehicles.length > 0) {
-      telemetryEngine.processTelemetry(rawVehicles);
-    }
+    const { vehicles: rawVehicles } = parsedResponse;
+    telemetryEngine.processTelemetry(rawVehicles);
+    lastLiveBusFetchTimestamp = Date.now();
     updateUpstreamSuccess();
   } catch (err) {
     const errorCode = err.code || (err.name === "AbortError" ? "ETIMEDOUT" : "POLL_ERROR");
@@ -1457,7 +1496,7 @@ if (require.main === module && !JCTSL_DIAGNOSTIC_MODE) {
 */
 const handleRoutesBetweenStops = async (req, res) => {
   try {
-    const headers = getAuthHeaders(req);
+    const headers = await ensureAuthHeaders(req);
     const fromQuery = String(
       req.query?.from ||
         req.query?.from_stop ||
@@ -1500,11 +1539,11 @@ const handleRoutesBetweenStops = async (req, res) => {
     );
     return res.json(result);
   } catch (error) {
-    console.error("Routes between stops error:", error);
+    console.error(`[Routes Between Stops Error] ${error.code || "ROUTE_SEARCH_ERROR"}`);
     return res.status(500).json({
       success: false,
       message: "Unable to search routes between stops",
-      error: error.message,
+      error: { code: error.code || "ROUTE_SEARCH_ERROR" },
     });
   }
 };
@@ -1520,55 +1559,84 @@ app.post("/api/routes-between-stops", handleRoutesBetweenStops);
 
 const handleAvailableRoutes = async (req, res) => {
   try {
-    const headers = getAuthHeaders(req);
-    if (!headers) {
-      return res.status(401).json({
-        success: false,
-        message: "Login required for live JCTSL data",
-        requiresAuth: true,
+    if (availableRoutesCache && Array.isArray(availableRoutesCache.respData) && availableRoutesCache.respData.length > 0) {
+      return res.json({
+        ...availableRoutesCache,
+        success: true,
+        dataAvailable: true,
+        isCached: true,
       });
     }
 
-    if (availableRoutesCache) {
-      return res.json(availableRoutesCache);
-    }
-
-    const city_id = req.query?.city_id || req.body?.city_id || "1";
-    const upstream = await jctslFetch("Log/getAvailableroutes", {
-      method: "POST",
-      headers,
-      body: { city_id: String(city_id) },
-      context: "handleAvailableRoutes",
-      timeoutMs: 12000,
-    });
-
-    if (!upstream.isJson || !upstream.data) {
-      return res.status(upstream.ok ? 200 : 502).json({
-        respCode: "0",
-        respMessage: "Upstream JCTSL service returned non-JSON response",
-        upstreamStatus: upstream.status,
+    const headers = await ensureAuthHeaders(req);
+    if (headers) {
+      const city_id = req.query?.city_id || req.body?.city_id || "1";
+      const upstream = await jctslFetch("Log/getAvailableroutes", {
+        method: "POST",
+        headers,
+        body: { city_id: String(city_id) },
+        context: "handleAvailableRoutes",
+        timeoutMs: 12000,
       });
+
+      if (upstream.ok && upstream.isJson && upstream.data?.respCode === "200" && Array.isArray(upstream.data?.respData)) {
+        updateUpstreamSuccess();
+        availableRoutesCache = {
+          ...upstream.data,
+          success: true,
+          dataAvailable: true,
+          isFallback: false,
+          isCached: false,
+          upstreamReachable: true,
+          timestamp: new Date().toISOString(),
+        };
+        return res.json(availableRoutesCache);
+      }
+      updateUpstreamFailure(upstream.isJson ? "UPSTREAM_RESPONSE_INVALID" : "NON_JSON_RESPONSE");
     }
 
-    const data = upstream.data;
-    if (upstream.ok && data?.respCode === "200") {
-      availableRoutesCache = data;
-    }
-    return res.status(upstream.status).json(data);
+    // Graceful fallback: Canonical routes catalog from backend/data/routesWithStops.json
+    console.warn("[Available Routes] Serving canonical routes catalog");
+    const canonicalRoutesList = (routeSearchEngine.canonicalRoutes || []).map((r) => ({
+      route_id: String(r.route_id),
+      route_orgno: String(r.route_orgno || ""),
+      route_name: String(r.route_name || ""),
+      routetype: String(r.routetype || "City"),
+      rkm: String(r.rkm || "0.00"),
+    }));
+
+    const fallbackData = {
+      success: true,
+      dataAvailable: canonicalRoutesList.length > 0,
+      respCode: "200",
+      respMessage: "Success",
+      isFallback: true,
+      isCached: false,
+      upstreamReachable: upstreamState.reachable,
+      timestamp: new Date().toISOString(),
+      respData: canonicalRoutesList,
+    };
+    return res.json(fallbackData);
   } catch (error) {
-    const cause = error.cause || {};
-    const errorCode = error.code || cause.code || (error.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
-    console.error(`[Available Routes Error] ${error.name}: ${error.message} (code: ${errorCode}, cause: ${cause.message || "N/A"})`);
-    return res.status(500).json({
-      success: false,
-      message: "Unable to fetch available routes",
-      error: error.message,
-      errorCode,
-      errorDetails: {
-        name: error.name,
-        code: errorCode,
-        causeMessage: cause.message || null,
-      },
+    console.error(`[Available Routes Error] ${error.code || "UPSTREAM_ERROR"}`);
+    updateUpstreamFailure(error.code || "UPSTREAM_ERROR");
+    const canonicalRoutesList = (routeSearchEngine.canonicalRoutes || []).map((r) => ({
+      route_id: String(r.route_id),
+      route_orgno: String(r.route_orgno || ""),
+      route_name: String(r.route_name || ""),
+      routetype: String(r.routetype || "City"),
+      rkm: String(r.rkm || "0.00"),
+    }));
+    return res.json({
+      success: true,
+      dataAvailable: canonicalRoutesList.length > 0,
+      respCode: "200",
+      respMessage: "Success",
+      isFallback: true,
+      isCached: false,
+      upstreamReachable: false,
+      timestamp: new Date().toISOString(),
+      respData: canonicalRoutesList,
     });
   }
 };
@@ -1586,7 +1654,7 @@ app.post("/api/available-routes", handleAvailableRoutes);
 */
 app.get("/api/routes/search", async (req, res) => {
   try {
-    const headers = getAuthHeaders(req);
+    const headers = await ensureAuthHeaders(req);
     if (!headers) {
       return res.status(401).json({
         success: false,
@@ -1662,11 +1730,11 @@ app.get("/api/routes/search", async (req, res) => {
       routes: keywordMatches,
     });
   } catch (error) {
-    console.error("Route search error:", error);
+    console.error(`[Route Search Error] ${error.code || "ROUTE_SEARCH_ERROR"}`);
     return res.status(500).json({
       success: false,
       message: "Unable to search routes",
-      error: error.message,
+      error: { code: error.code || "ROUTE_SEARCH_ERROR" },
     });
   }
 });
@@ -1678,15 +1746,6 @@ app.get("/api/routes/search", async (req, res) => {
 */
 const handleLiveRoute = async (req, res) => {
   try {
-    const headers = getAuthHeaders(req);
-    if (!headers) {
-      return res.status(401).json({
-        success: false,
-        message: "Login required for live JCTSL data",
-        requiresAuth: true,
-      });
-    }
-
     const route_id =
       req.params?.routeId || req.query?.route_id || req.body?.route_id;
     if (!route_id) {
@@ -1696,37 +1755,73 @@ const handleLiveRoute = async (req, res) => {
       });
     }
 
-    const upstream = await jctslFetch("rt/rvsearching", {
-      method: "POST",
-      headers,
-      body: { route_id: String(route_id) },
-      context: "handleLiveRoute",
-      timeoutMs: 12000,
-    });
+    const headers = await ensureAuthHeaders(req);
+    if (headers) {
+      const upstream = await jctslFetch("rt/rvsearching", {
+        method: "POST",
+        headers,
+        body: { route_id: String(route_id) },
+        context: "handleLiveRoute",
+        timeoutMs: 12000,
+      });
 
-    if (!upstream.isJson || !upstream.data) {
-      return res.status(upstream.ok ? 200 : 502).json({
-        respCode: "0",
-        respMessage: "Upstream JCTSL service returned non-JSON response",
-        upstreamStatus: upstream.status,
+      if (upstream.ok && upstream.isJson && upstream.data) {
+        updateUpstreamSuccess();
+        return res.status(upstream.status).json({
+          ...upstream.data,
+          success: true,
+          dataAvailable: true,
+          isFallback: false,
+          isCached: false,
+          upstreamReachable: true,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      updateUpstreamFailure(upstream.isJson ? "UPSTREAM_HTTP_ERROR" : "NON_JSON_RESPONSE");
+    }
+
+    // Fallback: check canonicalRoutes
+    const canonicalRoute = (routeSearchEngine.canonicalRoutes || []).find(
+      (r) =>
+        cleanRouteCode(r.route_id) === cleanRouteCode(route_id) ||
+        cleanRouteCode(r.route_orgno) === cleanRouteCode(route_id)
+    );
+    if (canonicalRoute) {
+      return res.json({
+        success: true,
+        dataAvailable: true,
+        respCode: "200",
+        respMessage: "Success",
+        isFallback: true,
+        isCached: false,
+        upstreamReachable: upstreamState.reachable,
+        timestamp: new Date().toISOString(),
+        respData: {
+          route_id: String(canonicalRoute.route_id),
+          route_no: String(canonicalRoute.route_orgno || ""),
+          route_name: canonicalRoute.route_name || "",
+          stops: canonicalRoute.stops || [],
+          buses: [],
+        },
       });
     }
 
-    return res.status(upstream.status).json(upstream.data);
+    return res.status(404).json({
+      success: false,
+      dataAvailable: false,
+      respCode: "0",
+      respMessage: "Route not found",
+      isFallback: false,
+      isCached: false,
+      upstreamReachable: upstreamState.reachable,
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
-    const cause = error.cause || {};
-    const errorCode = error.code || cause.code || (error.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
-    console.error(`[Live Route Error] ${error.name}: ${error.message} (code: ${errorCode}, cause: ${cause.message || "N/A"})`);
+    console.error(`[Live Route Error] ${error.code || "UPSTREAM_ERROR"}`);
     return res.status(500).json({
       success: false,
       message: "Unable to fetch live route data",
-      error: error.message,
-      errorCode,
-      errorDetails: {
-        name: error.name,
-        code: errorCode,
-        causeMessage: cause.message || null,
-      },
+      error: { code: error.code || "UPSTREAM_ERROR" },
     });
   }
 };
@@ -1742,15 +1837,6 @@ app.post("/api/live-route", handleLiveRoute);
 */
 const handleRouteMap = async (req, res) => {
   try {
-    const headers = getAuthHeaders(req);
-    if (!headers) {
-      return res.status(401).json({
-        success: false,
-        message: "Login required for live JCTSL data",
-        requiresAuth: true,
-      });
-    }
-
     const route_no =
       req.params?.routeNo || req.query?.route_no || req.body?.route_no;
     const vehicle_number =
@@ -1765,47 +1851,94 @@ const handleRouteMap = async (req, res) => {
 
     const routeKey = String(route_no).trim();
     if (!vehicle_number && routeMapCache.has(routeKey)) {
-      return res.json(routeMapCache.get(routeKey));
-    }
-
-    const upstream = await jctslFetch("rt/bspdtl", {
-      method: "POST",
-      headers,
-      body: {
-        route_no: routeKey,
-        vehicle_number: String(vehicle_number || ""),
-      },
-      context: "handleRouteMap",
-      timeoutMs: 12000,
-    });
-
-    if (!upstream.isJson || !upstream.data) {
-      return res.status(upstream.ok ? 200 : 502).json({
-        respCode: "0",
-        respMessage: "Upstream JCTSL service returned non-JSON response",
-        upstreamStatus: upstream.status,
+      return res.json({
+        ...routeMapCache.get(routeKey),
+        success: true,
+        dataAvailable: true,
+        isCached: true,
+        timestamp: new Date().toISOString(),
       });
     }
 
-    const data = upstream.data;
-    if (upstream.ok && data?.respCode === "200" && !vehicle_number) {
-      routeMapCache.set(routeKey, data);
+    const headers = await ensureAuthHeaders(req);
+    if (headers) {
+      const upstream = await jctslFetch("rt/bspdtl", {
+        method: "POST",
+        headers,
+        body: {
+          route_no: routeKey,
+          vehicle_number: String(vehicle_number || ""),
+        },
+        context: "handleRouteMap",
+        timeoutMs: 12000,
+      });
+
+      if (upstream.ok && upstream.isJson && upstream.data?.respCode === "200") {
+        updateUpstreamSuccess();
+        const mapData = {
+          ...upstream.data,
+          success: true,
+          dataAvailable: true,
+          isFallback: false,
+          isCached: false,
+          upstreamReachable: true,
+          timestamp: new Date().toISOString(),
+        };
+        if (!vehicle_number) {
+          routeMapCache.set(routeKey, mapData);
+        }
+        return res.json(mapData);
+      }
+      updateUpstreamFailure(upstream.isJson ? "UPSTREAM_RESPONSE_INVALID" : "NON_JSON_RESPONSE");
     }
-    return res.status(upstream.status).json(data);
+
+    // Fallback: check canonicalRoutes
+    const canonicalRoute = (routeSearchEngine.canonicalRoutes || []).find(
+      (r) =>
+        cleanRouteCode(r.route_id) === cleanRouteCode(routeKey) ||
+        cleanRouteCode(r.route_orgno) === cleanRouteCode(routeKey)
+    );
+
+    if (canonicalRoute && Array.isArray(canonicalRoute.stops)) {
+      const fallbackMap = {
+        success: true,
+        dataAvailable: true,
+        respCode: "200",
+        respMessage: "Success",
+        isFallback: true,
+        isCached: false,
+        upstreamReachable: upstreamState.reachable,
+        timestamp: new Date().toISOString(),
+        respData: canonicalRoute.stops.map((s, idx) => ({
+          bus_stop_id: String(s.order || idx + 1),
+          bus_stop_name: s.name,
+          bus_stop_order: String(s.order || idx + 1),
+          latitude: String(s.latitude),
+          longitude: String(s.longitude),
+        })),
+      };
+      if (!vehicle_number) {
+        routeMapCache.set(routeKey, fallbackMap);
+      }
+      return res.json(fallbackMap);
+    }
+
+    return res.status(404).json({
+      success: false,
+      dataAvailable: false,
+      respCode: "0",
+      respMessage: "Route map not found for requested route",
+      isFallback: false,
+      isCached: false,
+      upstreamReachable: upstreamState.reachable,
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
-    const cause = error.cause || {};
-    const errorCode = error.code || cause.code || (error.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
-    console.error(`[Route Map Error] ${error.name}: ${error.message} (code: ${errorCode}, cause: ${cause.message || "N/A"})`);
+    console.error(`[Route Map Error] ${error.code || "UPSTREAM_ERROR"}`);
     return res.status(500).json({
       success: false,
       message: "Unable to fetch route map data",
-      error: error.message,
-      errorCode,
-      errorDetails: {
-        name: error.name,
-        code: errorCode,
-        causeMessage: cause.message || null,
-      },
+      error: { code: error.code || "UPSTREAM_ERROR" },
     });
   }
 };
@@ -1822,7 +1955,7 @@ app.post("/api/route-map", handleRouteMap);
 */
 const handleBusTrack = async (req, res) => {
   try {
-    const headers = getAuthHeaders(req);
+    const headers = await ensureAuthHeaders(req);
     if (!headers) {
       return res.status(401).json({
         success: false,
@@ -1874,18 +2007,13 @@ const handleBusTrack = async (req, res) => {
     return res.status(upstream.status).json(upstream.data);
   } catch (error) {
     const cause = error.cause || {};
-    const errorCode = error.code || cause.code || (error.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
-    console.error(`[Bus Track Error] ${error.name}: ${error.message} (code: ${errorCode}, cause: ${cause.message || "N/A"})`);
+    const errorCode = getSafeErrorCode(error, "FETCH_ERROR");
+    console.error(`[Bus Track Error] ${errorCode}`);
     return res.status(500).json({
       success: false,
       message: "Unable to track bus",
-      error: error.message,
+      error: { code: errorCode },
       errorCode,
-      errorDetails: {
-        name: error.name,
-        code: errorCode,
-        causeMessage: cause.message || null,
-      },
     });
   }
 };
@@ -1903,7 +2031,7 @@ app.post("/api/bus-tracking", handleBusTrack);
 */
 const handleFare = async (req, res) => {
   try {
-    const headers = getAuthHeaders(req);
+    const headers = await ensureAuthHeaders(req);
     if (!headers) {
       return res.status(401).json({
         success: false,
@@ -1950,18 +2078,13 @@ const handleFare = async (req, res) => {
     return res.status(upstream.status).json(upstream.data);
   } catch (error) {
     const cause = error.cause || {};
-    const errorCode = error.code || cause.code || (error.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
-    console.error(`[Fare Error] ${error.name}: ${error.message} (code: ${errorCode}, cause: ${cause.message || "N/A"})`);
+    const errorCode = getSafeErrorCode(error, "FETCH_ERROR");
+    console.error(`[Fare Error] ${errorCode}`);
     return res.status(500).json({
       success: false,
       message: "Unable to calculate fare",
-      error: error.message,
+      error: { code: errorCode },
       errorCode,
-      errorDetails: {
-        name: error.name,
-        code: errorCode,
-        causeMessage: cause.message || null,
-      },
     });
   }
 };
@@ -1977,7 +2100,7 @@ app.post("/api/fare", handleFare);
 */
 const handleBusTimings = async (req, res) => {
   try {
-    const headers = getAuthHeaders(req);
+    const headers = await ensureAuthHeaders(req);
     if (!headers) {
       return res.status(401).json({
         success: false,
@@ -2017,17 +2140,12 @@ const handleBusTimings = async (req, res) => {
   } catch (error) {
     const cause = error.cause || {};
     const errorCode = error.code || cause.code || (error.name === "AbortError" ? "ETIMEDOUT" : "FETCH_ERROR");
-    console.error(`[Bus Timings Error] ${error.name}: ${error.message} (code: ${errorCode}, cause: ${cause.message || "N/A"})`);
+    console.error(`[Bus Timings Error] ${errorCode}`);
     return res.status(500).json({
       success: false,
       message: "Unable to fetch bus timings",
-      error: error.message,
+      error: { code: errorCode },
       errorCode,
-      errorDetails: {
-        name: error.name,
-        code: errorCode,
-        causeMessage: cause.message || null,
-      },
     });
   }
 };
@@ -2039,8 +2157,7 @@ app.post("/api/bus-timings", handleBusTimings);
 // Background cache warmer for route maps to guarantee <5ms response
 async function warmRouteMaps() {
   try {
-    if (!activeSession) return;
-    const headers = getAuthHeaders();
+    const headers = await ensureAuthHeaders();
     if (!headers) return;
 
     // First ensure availableRoutes is fetched
@@ -2094,62 +2211,15 @@ const metroRouter = require("./metro/metroRoutes");
 app.use("/api/metro", metroRouter);
 
 
-// TEMPORARY OUTBOUND HTTPS DIAGNOSTIC - remove after testing
-const diagnosticCrypto = require("node:crypto");
-
-app.get("/api/test-outbound", async (req, res) => {
-  const expected = process.env.DIAGNOSTIC_SECRET || "";
-  const provided = req.get("x-diagnostic-secret") || "";
-  const a = Buffer.from(expected, "utf8");
-  const b = Buffer.from(provided, "utf8");
-
-  if (!expected || !provided || a.length !== b.length ||
-      !diagnosticCrypto.timingSafeEqual(a, b)) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
-  async function testHttps(url) {
-    const started = Date.now();
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 7000);
-
-    try {
-      const response = await fetch(url, {
-        signal: controller.signal,
-        headers: { Accept: "application/json" }
-      });
-      return {
-        success: true,
-        statusCode: response.status,
-        elapsedMs: Date.now() - started
-      };
-    } catch (error) {
-      return {
-        success: false,
-        errorCode: error.cause?.code || error.code || error.name,
-        elapsedMs: Date.now() - started
-      };
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  const [publicHttps, jctslHttps] = await Promise.all([
-    testHttps("https://jsonplaceholder.typicode.com/todos/1"),
-    testHttps("https://www.omnificent.co.in/OMB/")
-  ]);
-
-  res.set("Cache-Control", "no-store");
-  return res.json({
-    timestamp: new Date().toISOString(),
-    publicHttps,
-    jctslHttps
-  });
-});
 
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`JBL Backend running on http://localhost:${PORT}`);
+    if (!sessionManager.hasActiveSession() && !sessionManager.hasRestoredSession()) {
+      console.warn(
+        "[JCTSL Auth] No configured session; background polling will wait for a verified OTP session."
+      );
+    }
     if (!JCTSL_DIAGNOSTIC_MODE) {
       setTimeout(warmRouteMaps, 1000);
     }
@@ -2161,10 +2231,14 @@ module.exports = app;
 Object.assign(module.exports, {
   app,
   jctslFetch,
+  refreshJctslSession,
+  ensureAuthHeaders,
   upstreamState,
   updateUpstreamSuccess,
   updateUpstreamFailure,
   TRANSIENT_ERROR_CODES,
+  parseLiveBusResponse,
+  allowOtpRequest,
   JCTSL_BASE_URL,
   JCTSL_HOST,
 });

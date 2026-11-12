@@ -1,0 +1,57 @@
+<svg width="300" height="170" viewBox="0 0 300 170" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="amerSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="65%" stop-color="#e0f2fe" />
+      <stop offset="100%" stop-color="#fef3c7" />
+    </linearGradient>
+    <linearGradient id="amerHills" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#15803d" />
+      <stop offset="100%" stop-color="#166534" />
+    </linearGradient>
+    <linearGradient id="fortWalls" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d97706" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+  </defs>
+
+  <!-- Sky -->
+  <rect width="300" height="170" fill="url(#amerSky)" />
+
+  <!-- Sun -->
+  <circle cx="240" cy="40" r="16" fill="#fef08a" opacity="0.8" />
+
+  <!-- Distant Hill Peaks -->
+  <path d="M0 100 Q80 40 160 85 T300 65 V170 H0 Z" fill="#65a30d" opacity="0.4" />
+
+  <!-- Main Amer Fort Mountain Ridge -->
+  <path d="M0 130 Q70 65 150 95 T300 90 V170 H0 Z" fill="url(#amerHills)" />
+
+  <!-- Fortified Ramparts / Great Wall of Amer -->
+  <path d="M20 135 L60 100 L110 115 L170 85 L220 105 L280 95" stroke="url(#fortWalls)" stroke-width="6" stroke-linecap="round" fill="none" />
+  <!-- Battlements -->
+  <path d="M20 133 L60 98 L110 113 L170 83 L220 103 L280 93" stroke="#fde68a" stroke-width="1.8" stroke-dasharray="4 4" fill="none" />
+
+  <!-- Watchtowers / Burjs -->
+  <rect x="56" y="88" width="10" height="15" rx="1" fill="#b45309" />
+  <path d="M54 88 q6 -6 14 0 Z" fill="#d97706" stroke="#fde68a" stroke-width="1" />
+
+  <!-- Amer Palace Citadel on Top -->
+  <rect x="156" y="70" width="36" height="24" rx="2" fill="#d97706" />
+  <rect x="162" y="60" width="24" height="10" rx="1" fill="#b45309" />
+  <path d="M160 60 q13 -10 26 0 Z" fill="#f59e0b" stroke="#fde68a" stroke-width="1" />
+  <!-- Palace Arches -->
+  <path d="M164 86 v-6 a3 3 0 0 1 6 0 v6 m6 0 v-6 a3 3 0 0 1 6 0 v6" stroke="#fef3c7" stroke-width="1.5" fill="none" />
+
+  <!-- Maota Lake at Bottom -->
+  <path d="M0 148 Q100 138 200 144 T300 142 V170 H0 Z" fill="#0284c7" opacity="0.85" />
+
+  <!-- Journey Planner Route Trail Pin -->
+  <path d="M40 156 Q110 130 180 148 T260 115" stroke="#3b82f6" stroke-width="3" stroke-dasharray="6 4" fill="none" />
+  <!-- Origin Pin -->
+  <circle cx="40" cy="156" r="4.5" fill="#3b82f6" stroke="#ffffff" stroke-width="2" />
+  <!-- Destination Pin -->
+  <circle cx="260" cy="115" r="6" fill="#ef4444" stroke="#ffffff" stroke-width="2" />
+  <circle cx="260" cy="115" r="2.5" fill="#ffffff" />
+</svg>
+

@@ -647,7 +647,7 @@ async function runJctslNetworkDiagnostic({
     if (!authToken || !userId) {
       authorizedApiTestResult = {
         tested: false,
-        reason: "No credentials provided via environment or session",
+        reason: "No credentials provided via environment",
         hasAuthToken: Boolean(authToken),
         hasUserId: Boolean(userId),
       };
@@ -765,22 +765,8 @@ if (require.main === module) {
   const dns = require("dns");
   const baseUrl = process.env.JCTSL_BASE_URL || "https://www.omnificent.co.in/OMB/";
   const wantsApiTest = process.argv.includes("--api");
-  let authToken = process.env.JCTSL_AUTH_TOKEN || null;
-  let userId = process.env.JCTSL_USER_ID || null;
-  if (wantsApiTest && (!authToken || !userId)) {
-    const fs = require("fs");
-    const path = require("path");
-    const sessionPath = path.join(__dirname, ".session.json");
-    if (fs.existsSync(sessionPath)) {
-      try {
-        const s = JSON.parse(fs.readFileSync(sessionPath, "utf8"));
-        if (s.authToken && s.userId) {
-          authToken = s.authToken;
-          userId = s.userId;
-        }
-      } catch (_) {}
-    }
-  }
+  const authToken = process.env.JCTSL_AUTH_TOKEN || null;
+  const userId = process.env.JCTSL_USER_ID || null;
 
   runJctslNetworkDiagnostic({
     baseUrl,

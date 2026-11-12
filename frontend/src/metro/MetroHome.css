@@ -1,0 +1,1393 @@
+/* ==========================================================================
+   JAIPUR METRO GUIDE (JMRC PINK LINE) — PREMIUM MODERN TRANSIT DESIGN SYSTEM
+   Palette: Heritage Cream/Off-White + Deep Forest Green + Pink Line Accents
+   Fully Scoped under .metro-premium to prevent bleeding into App.css
+   Responsive across: 320px, 360px, 390px, 430px, 600px, 768px, 1024px, 1440px+
+   ========================================================================== */
+
+.metro-premium {
+  /* Design Tokens */
+  --m-cream: #faf8f3;
+  --m-cream-soft: #f4efe4;
+  --m-cream-card: #ffffff;
+  --m-cream-border: #e6dfd1;
+  --m-cream-border-subtle: #f0ebe0;
+
+  --m-green: #064e3b;
+  --m-green-deep: #022c22;
+  --m-green-mid: #065f46;
+  --m-green-light: #0d9488;
+  --m-green-tint: #ecfdf5;
+  --m-green-border: #a7f3d0;
+
+  --m-pink: #e11d48;
+  --m-pink-deep: #be185d;
+  --m-pink-light: #fb7185;
+  --m-pink-tint: #fff1f2;
+  --m-pink-border: #fecdd3;
+  --m-pink-glow: rgba(225, 29, 72, 0.22);
+
+  --m-gold: #b45309;
+  --m-gold-tint: #fffbeb;
+  --m-gold-border: #fde68a;
+
+  --m-text-primary: #0d2822;
+  --m-text-secondary: #3b5049;
+  --m-text-muted: #4e635c;
+
+  --m-shadow-xs: 0 1px 2px rgba(6, 78, 59, 0.05);
+  --m-shadow-sm: 0 2px 6px -1px rgba(6, 78, 59, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03);
+  --m-shadow-md: 0 6px 20px -3px rgba(6, 78, 59, 0.08), 0 2px 8px -2px rgba(0, 0, 0, 0.04);
+  --m-shadow-lg: 0 16px 36px -6px rgba(6, 78, 59, 0.12), 0 4px 12px -2px rgba(0, 0, 0, 0.04);
+
+  --m-radius-sm: 10px;
+  --m-radius-md: 16px;
+  --m-radius-lg: 22px;
+  --m-radius-xl: 30px;
+
+  width: 100%;
+  min-height: 100vh;
+  background-color: var(--m-cream);
+  background-image:
+    radial-gradient(ellipse at 85% 5%, rgba(225, 29, 72, 0.045) 0%, transparent 40%),
+    radial-gradient(ellipse at 15% 30%, rgba(6, 78, 59, 0.04) 0%, transparent 45%);
+  color: var(--m-text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  box-sizing: border-box;
+  padding: 16px 16px 48px;
+  line-height: 1.5;
+}
+
+/* Base reset for metro elements */
+.metro-premium *,
+.metro-premium *::before,
+.metro-premium *::after {
+  box-sizing: border-box;
+}
+
+.metro-premium button,
+.metro-premium input,
+.metro-premium select {
+  font-family: inherit;
+}
+
+.metro-premium button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.16s ease, background 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.metro-premium button:active {
+  transform: scale(0.98);
+}
+
+.metro-premium button:focus-visible,
+.metro-premium a:focus-visible,
+.metro-premium input:focus-visible,
+.metro-premium select:focus-visible {
+  outline: 2px solid var(--m-pink);
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   1. TOP NAVIGATION BAR (.metro-topbar)
+   ========================================================================== */
+.metro-premium .metro-topbar {
+  max-width: 1280px;
+  margin: 0 auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--m-cream-card);
+  border: 1px solid var(--m-cream-border);
+  border-radius: var(--m-radius-md);
+  box-shadow: var(--m-shadow-xs);
+}
+
+.metro-premium .metro-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.metro-premium .metro-brand-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--m-green-deep) 0%, var(--m-green) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(6, 78, 59, 0.25);
+  flex-shrink: 0;
+}
+
+.metro-premium .metro-brand-text h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: -0.02em;
+  color: var(--m-green-deep);
+  line-height: 1.2;
+}
+
+.metro-premium .metro-brand-subtitle {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--m-pink);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.metro-premium .metro-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.metro-premium .metro-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--m-green-tint);
+  border: 1px solid var(--m-green-border);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--m-green-mid);
+}
+
+.metro-premium .metro-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+  animation: metroPulse 2s infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes metroPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.15); }
+}
+
+.metro-premium .metro-back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 16px;
+  background: #ffffff;
+  border: 1px solid var(--m-cream-border);
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-weight: 750;
+  color: var(--m-green);
+  box-shadow: var(--m-shadow-xs);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.metro-premium .metro-back-button:hover {
+  background: var(--m-green-tint);
+  border-color: var(--m-green-border);
+}
+
+/* ==========================================================================
+   2. HERO SECTION (.metro-hero)
+   ========================================================================== */
+.metro-premium .metro-hero {
+  max-width: 1280px;
+  margin: 0 auto 24px;
+  height: 380px;
+  border-radius: var(--m-radius-xl);
+  overflow: hidden;
+  box-shadow: var(--m-shadow-lg);
+  border: 1px solid var(--m-cream-border);
+  position: relative;
+  background: #02281e;
+}
+
+.metro-premium .metro-hero-picture {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.metro-premium .metro-hero-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center 12%;
+}
+
+.metro-premium .metro-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, var(--m-green-deep) 0%, var(--m-green) 100%);
+  color: #ffffff;
+  font-size: 13.5px;
+  font-weight: 850;
+  border-radius: var(--m-radius-md);
+  box-shadow: 0 4px 14px rgba(6, 78, 59, 0.22);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.metro-premium .metro-btn-primary:hover {
+  background: linear-gradient(135deg, var(--m-pink-deep) 0%, var(--m-pink) 100%);
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(225, 29, 72, 0.28);
+}
+
+.metro-premium .metro-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 22px;
+  background: var(--m-cream-card);
+  color: var(--m-green-deep);
+  font-size: 13.5px;
+  font-weight: 800;
+  border: 1.5px solid var(--m-cream-border);
+  border-radius: var(--m-radius-md);
+  box-shadow: var(--m-shadow-xs);
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.metro-premium .metro-btn-secondary:hover {
+  background: var(--m-green-tint);
+  border-color: var(--m-green-border);
+  color: var(--m-green);
+  transform: translateY(-2px);
+}
+
+/* ==========================================================================
+   3. METRO OVERVIEW STATS BAR (.metro-stats)
+   ========================================================================== */
+.metro-premium .metro-stats {
+  max-width: 1280px;
+  margin: 0 auto 32px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.metro-premium .metro-stat-card {
+  background: var(--m-cream-card);
+  border: 1px solid var(--m-cream-border);
+  border-radius: var(--m-radius-md);
+  padding: 16px 18px;
+  box-shadow: var(--m-shadow-xs);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.metro-premium .metro-stat-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--m-green-border);
+  box-shadow: var(--m-shadow-md);
+}
+
+.metro-premium .metro-stat-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--m-cream-soft);
+  border: 1px solid var(--m-cream-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--m-green);
+  flex-shrink: 0;
+}
+
+.metro-premium .metro-stat-card:nth-child(2) .metro-stat-icon-wrap {
+  background: var(--m-pink-tint);
+  border-color: var(--m-pink-border);
+  color: var(--m-pink);
+}
+
+.metro-premium .metro-stat-card:nth-child(3) .metro-stat-icon-wrap {
+  background: var(--m-green-tint);
+  border-color: var(--m-green-border);
+  color: var(--m-green-mid);
+}
+
+.metro-premium .metro-stat-card:nth-child(4) .metro-stat-icon-wrap {
+  background: var(--m-gold-tint);
+  border-color: var(--m-gold-border);
+  color: var(--m-gold);
+}
+
+.metro-premium .metro-stat-value {
+  margin: 0;
+  font-size: clamp(17px, 1.8vw, 22px);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--m-green-deep);
+  line-height: 1.15;
+}
+
+.metro-premium .metro-stat-label {
+  margin: 2px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--m-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ==========================================================================
+   4. NAVIGATION SEGMENTED TABS (.metro-nav-tabs)
+   ========================================================================== */
+.metro-premium .metro-main-section {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.metro-premium .metro-section-header {
+  margin-bottom: 18px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.metro-premium .metro-section-eyebrow {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--m-pink);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.metro-premium .metro-section-title {
+  margin: 0;
+  font-size: clamp(20px, 2.5vw, 28px);
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  color: var(--m-green-deep);
+}
+
+.metro-premium .metro-nav-tabs {
+  display: flex;
+  background: var(--m-cream-soft);
+  border: 1px solid var(--m-cream-border);
+  border-radius: var(--m-radius-md);
+  padding: 4px;
+  gap: 4px;
+  margin-bottom: 22px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.metro-premium .metro-tab-btn {
+  flex: 1;
+  min-width: 130px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: var(--m-radius-sm);
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--m-text-secondary);
+  background: transparent;
+  white-space: nowrap;
+  transition: all 0.16s ease;
+  cursor: pointer;
+}
+
+.metro-premium .metro-tab-btn:hover {
+  color: var(--m-green-deep);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.metro-premium .metro-tab-btn.active {
+  background: var(--m-green-deep);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(6, 78, 59, 0.25);
+}
+
+/* ==========================================================================
+   5. DUAL-COLUMN CONTENT LAYOUT (.metro-content-grid)
+   ========================================================================== */
+.metro-premium .metro-content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.metro-premium .metro-panel {
+  background: var(--m-cream-card);
+  border: 1px solid var(--m-cream-border);
+  border-radius: var(--m-radius-lg);
+  padding: clamp(16px, 2.5vw, 24px);
+  box-shadow: var(--m-shadow-xs);
+}
+
+.metro-premium .metro-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--m-cream-border-subtle);
+}
+
+.metro-premium .metro-panel-title-group h2,
+.metro-premium .metro-panel-title-group h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 850;
+  color: var(--m-green-deep);
+  letter-spacing: -0.01em;
+}
+
+.metro-premium .metro-panel-description {
+  margin: 3px 0 0;
+  font-size: 11.5px;
+  color: var(--m-text-secondary);
+}
+
+.metro-premium .metro-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: var(--m-pink-tint);
+  border: 1px solid var(--m-pink-border);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 850;
+  color: var(--m-pink-deep);
+}
+
+/* ==========================================================================
+   6. METRO MAP STYLING (.metro-map-panel)
+   ========================================================================== */
+.metro-premium .metro-map-container {
+  position: relative;
+  width: 100%;
+  height: clamp(340px, 42vw, 480px);
+  min-height: 320px;
+  border-radius: var(--m-radius-md);
+  overflow: hidden;
+  border: 1px solid var(--m-cream-border);
+  box-shadow: var(--m-shadow-sm);
+  background: #f1ede2;
+}
+
+.metro-premium .leaflet-container {
+  width: 100%;
+  height: 100%;
+  font-family: inherit;
+  z-index: 1;
+}
+
+.metro-premium .metro-osm-tile {
+  image-rendering: auto;
+  will-change: transform, opacity;
+}
+
+.metro-premium .leaflet-touch .leaflet-bar a,
+.metro-premium .leaflet-control-zoom a {
+  width: 44px !important;
+  height: 44px !important;
+  line-height: 44px !important;
+  font-size: 20px !important;
+}
+
+.metro-premium .metro-map-floating-overlay {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.metro-premium .metro-map-floating-overlay > * {
+  pointer-events: auto;
+}
+
+.metro-premium .metro-map-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--m-cream-border);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 850;
+  color: var(--m-green-deep);
+  box-shadow: var(--m-shadow-sm);
+}
+
+.metro-premium button.metro-map-tag {
+  min-height: 44px;
+  padding: 10px 14px;
+}
+
+.metro-premium .metro-map-legend-bar {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--m-cream-soft);
+  border: 1px solid var(--m-cream-border);
+  border-radius: 10px;
+  font-size: 11px;
+  color: var(--m-text-secondary);
+}
+
+.metro-premium .metro-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.metro-premium .metro-legend-chip {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* ==========================================================================
+   7. JOURNEY PLANNER (.metro-journey-panel)
+   ========================================================================== */
+.metro-premium .metro-station-selector-box {
+  background: var(--m-cream-soft);
+  border: 1px solid var(--m-cream-border);
+  border-radius: var(--m-radius-md);
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.metro-premium .metro-input-group {
+  position: relative;
+}
+
+.metro-premium .metro-input-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10.5px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--m-text-secondary);
+  margin-bottom: 5px;
+}
+
+.metro-premium .metro-station-trigger {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1.5px solid var(--m-cream-border);
+  border-radius: var(--m-radius-sm);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--m-green-deep);
+  box-shadow: var(--m-shadow-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.metro-premium .metro-station-trigger:hover,
+.metro-premium .metro-station-trigger:focus {
+  border-color: var(--m-pink);
+  background: #ffffff;
+}
+
+.metro-premium .metro-station-trigger-content {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  overflow: hidden;
+}
+
+.metro-premium .metro-station-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.metro-premium .metro-station-indicator.from {
+  background: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.metro-premium .metro-station-indicator.to {
+  background: var(--m-pink);
+  box-shadow: 0 0 0 2px rgba(225, 29, 72, 0.2);
+}
+
+/* Swap Button */
+.metro-premium .metro-swap-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: -6px 0;
+  position: relative;
+  z-index: 5;
+}
+
+.metro-premium .metro-swap-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 18px;
+  background: #ffffff;
+  border: 1px solid var(--m-cream-border);
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 850;
+  color: var(--m-pink-deep);
+  box-shadow: var(--m-shadow-xs);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.metro-premium .metro-swap-btn:hover:not(:disabled) {
+  background: var(--m-pink-tint);
+  border-color: var(--m-pink-border);
+}
+
+.metro-premium .metro-swap-btn .metro-swap-icon {
+  display: inline-block;
+  transition: transform 0.25s ease;
+}
+
+.metro-premium .metro-swap-btn:hover:not(:disabled) .metro-swap-icon {
+  transform: rotate(180deg);
+}
+
+.metro-premium .metro-swap-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Station Dropdown Popover */
+.metro-premium .metro-station-dropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  background: #ffffff;
+  border: 1px solid var(--m-cream-border);
+  border-radius: var(--m-radius-md);
+  box-shadow: var(--m-shadow-lg);
+  max-height: 250px;
+  overflow-y: auto;
+  z-index: 1000;
+  padding: 6px;
+}
+
+.metro-premium .metro-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.metro-premium .metro-dropdown-item:hover {
+  background: var(--m-cream-soft);
+}
+
+.metro-premium .metro-dropdown-item.selected {
+  background: var(--m-green-tint);
+}
+
+.metro-premium .metro-station-order-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--m-cream-soft);
+  color: var(--m-green-deep);
+  font-size: 10px;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+
+.metro-premium .metro-plan-btn {
+  width: 100%;
+  padding: 12px 18px;
+  background: linear-gradient(135deg, var(--m-green-deep) 0%, var(--m-green) 100%);
+  color: #ffffff;
+  border-radius: var(--m-radius-md);
+  font-size: 13px;
+  font-weight: 850;
+  letter-spacing: 0.02em;
+  box-shadow: 0 4px 12px rgba(6, 78, 59, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.metro-premium .metro-plan-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--m-green) 0%, var(--m-green-mid) 100%);
+  box-shadow: 0 6px 18px rgba(6, 78, 59, 0.28);
+}
+
+.metro-premium .metro-plan-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   8. JOURNEY RESULTS DISPLAY
+   ========================================================================== */
+.metro-premium .metro-journey-result-card {
+  margin-top: 18px;
+  background: #ffffff;
+  border: 1.5px solid var(--m-cream-border);
+  border-radius: var(--m-radius-lg);
+  padding: 18px;
+  box-shadow: var(--m-shadow-sm);
+}
+
+.metro-premium .metro-result-summary-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--m-cream-border-subtle);
+}
+
+.metro-premium .metro-direction-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: var(--m-pink-tint);
+  border: 1px solid var(--m-pink-border);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 850;
+  color: var(--m-pink-deep);
+}
+
+.metro-premium .metro-journey-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.metro-premium .metro-metric-box {
+  background: var(--m-cream-soft);
+  border: 1px solid var(--m-cream-border-subtle);
+  border-radius: var(--m-radius-sm);
+  padding: 10px;
+  text-align: center;
+}
+
+.metro-premium .metro-metric-box strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--m-green-deep);
+}
+
+.metro-premium .metro-metric-box span {
+  display: block;
+  font-size: 10px;
+  font-weight: 750;
+  color: var(--m-text-secondary);
+  text-transform: uppercase;
+}
+
+/* Dual Fare Comparison Box */
+.metro-premium .metro-fare-comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.metro-premium .metro-fare-card {
+  border-radius: var(--m-radius-sm);
+  padding: 12px;
+  border: 1px solid var(--m-cream-border);
+}
+
+.metro-premium .metro-fare-card.standard {
+  background: #ffffff;
+}
+
+.metro-premium .metro-fare-card.smart {
+  background: var(--m-green-tint);
+  border-color: var(--m-green-border);
+}
+
+.metro-premium .metro-fare-amount {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--m-green-deep);
+}
+
+.metro-premium .metro-fare-title {
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--m-text-secondary);
+}
+
+/* Vertical Station Sequence Timeline */
+.metro-premium .metro-timeline-container {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--m-cream-border-subtle);
+}
+
+.metro-premium .metro-timeline-list {
+  position: relative;
+  padding-left: 24px;
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.metro-premium .metro-timeline-list::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 8px;
+  bottom: 8px;
+  width: 2.5px;
+  background: var(--m-pink-border);
+}
+
+.metro-premium .metro-timeline-node {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.metro-premium .metro-timeline-dot {
+  position: absolute;
+  left: -24px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2.5px solid var(--m-pink);
+  z-index: 2;
+}
+
+.metro-premium .metro-timeline-node.start .metro-timeline-dot {
+  background: #10b981;
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px #10b981;
+}
+
+.metro-premium .metro-timeline-node.end .metro-timeline-dot {
+  background: var(--m-pink-deep);
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px var(--m-pink-deep);
+}
+
+.metro-premium .metro-timeline-station-name {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--m-text-primary);
+}
+
+.metro-premium .metro-structure-pill {
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.metro-premium .metro-structure-pill.elevated {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.metro-premium .metro-structure-pill.underground {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
+
+/* ==========================================================================
+   9. STATION EXPLORER (.metro-search-panel)
+   ========================================================================== */
+.metro-premium .metro-search-bar-wrap {
+  position: relative;
+  margin-bottom: 14px;
+}
+
+.metro-premium .metro-search-input {
+  width: 100%;
+  padding: 12px 38px 12px 14px;
+  background: #ffffff;
+  border: 1.5px solid var(--m-cream-border);
+  border-radius: var(--m-radius-md);
+  font-size: 13px;
+  font-weight: 750;
+  color: var(--m-text-primary);
+  box-shadow: var(--m-shadow-xs);
+  transition: border-color 0.16s ease;
+}
+
+.metro-premium .metro-search-input:focus {
+  border-color: var(--m-pink);
+}
+
+.metro-premium .metro-search-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--m-text-secondary);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Filter Chips */
+.metro-premium .metro-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.metro-premium .metro-filter-chip {
+  min-height: 44px;
+  padding: 8px 16px;
+  background: var(--m-cream-soft);
+  border: 1px solid var(--m-cream-border);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 750;
+  color: var(--m-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.metro-premium .metro-filter-chip.active {
+  background: var(--m-green-deep);
+  color: #ffffff;
+  border-color: var(--m-green-deep);
+}
+
+/* Station Cards Grid */
+.metro-premium .metro-station-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.metro-premium .metro-station-card {
+  background: #ffffff;
+  border: 1px solid var(--m-cream-border);
+  border-radius: var(--m-radius-md);
+  padding: 14px;
+  box-shadow: var(--m-shadow-xs);
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.metro-premium .metro-station-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--m-pink-border);
+  box-shadow: var(--m-shadow-md);
+}
+
+.metro-premium .metro-station-card.selected {
+  border-color: var(--m-pink);
+  box-shadow: 0 0 0 2px var(--m-pink-border);
+}
+
+.metro-premium .metro-station-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.metro-premium .metro-station-title-group h3,
+.metro-premium .metro-station-title-group h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 850;
+  color: var(--m-green-deep);
+}
+
+.metro-premium .metro-station-hindi {
+  font-size: 11px;
+  color: var(--m-text-secondary);
+  font-weight: 600;
+}
+
+.metro-premium .metro-station-card-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--m-cream-border-subtle);
+}
+
+.metro-premium .metro-btn-action {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 800;
+  text-align: center;
+  background: var(--m-cream-soft);
+  border: 1px solid var(--m-cream-border);
+  color: var(--m-green-deep);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.metro-premium .metro-btn-action:hover {
+  background: var(--m-pink-tint);
+  border-color: var(--m-pink-border);
+  color: var(--m-pink-deep);
+}
+
+/* ==========================================================================
+   10. FARES AND TIMINGS GUIDE
+   ========================================================================== */
+.metro-premium .metro-fare-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 14px 0;
+  border-radius: var(--m-radius-sm);
+  border: 1px solid var(--m-cream-border);
+}
+
+.metro-premium .metro-fare-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 12.5px;
+  background: #ffffff;
+}
+
+.metro-premium .metro-fare-table th {
+  background: var(--m-cream-soft);
+  color: var(--m-green-deep);
+  font-weight: 850;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--m-cream-border);
+}
+
+.metro-premium .metro-fare-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--m-cream-border-subtle);
+  color: var(--m-text-primary);
+}
+
+.metro-premium .metro-fare-table tr:last-child td {
+  border-bottom: none;
+}
+
+.metro-premium .metro-source-disclaimer {
+  font-size: 11px;
+  color: var(--m-text-secondary);
+  line-height: 1.6;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: var(--m-cream-soft);
+  border-radius: 8px;
+}
+
+/* Helpline & Service Highlights */
+.metro-premium .metro-helpline-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  background: var(--m-green-tint);
+  border: 1px solid var(--m-green-border);
+  border-radius: var(--m-radius-md);
+  margin-top: 16px;
+}
+
+.metro-premium .metro-helpline-phone {
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--m-green-deep);
+  letter-spacing: 0.02em;
+}
+
+/* ==========================================================================
+   11. FOOTER & FINAL CALL TO ACTION (.metro-footer)
+   ========================================================================== */
+.metro-premium .metro-footer-cta {
+  max-width: 1280px;
+  margin: 36px auto 20px;
+  background: linear-gradient(135deg, var(--m-green-deep) 0%, var(--m-green) 100%);
+  border-radius: var(--m-radius-lg);
+  padding: clamp(20px, 3.5vw, 36px);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  box-shadow: var(--m-shadow-md);
+}
+
+.metro-premium .metro-footer-cta h2,
+.metro-premium .metro-footer-cta h3 {
+  margin: 0 0 6px;
+  font-size: clamp(18px, 2.2vw, 24px);
+  font-weight: 850;
+  color: #ffffff;
+}
+
+.metro-premium .metro-footer-cta p {
+  margin: 0;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.82);
+  max-width: 540px;
+}
+
+.metro-premium .metro-footer-bar {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding-top: 20px;
+  border-top: 1px solid var(--m-cream-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--m-text-secondary);
+}
+
+/* ==========================================================================
+   12. UNIVERSAL RESPONSIVE BREAKPOINTS
+   ========================================================================== */
+/* Tablet & Medium Screens (max-width: 960px) */
+@media (max-width: 960px) {
+  .metro-premium .metro-hero {
+    height: 310px;
+  }
+
+  .metro-premium .metro-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .metro-premium .metro-content-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Standard Mobile (max-width: 600px) */
+@media (max-width: 600px) {
+  .metro-premium {
+    padding: 12px 10px 36px;
+  }
+
+  .metro-premium .metro-topbar {
+    padding: 8px 12px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+
+  .metro-premium .metro-topbar-actions {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .metro-premium .metro-status-pill {
+    font-size: 10.5px;
+    padding: 4px 10px;
+  }
+
+  .metro-premium .metro-back-button {
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+
+  .metro-premium .metro-brand-text h1 {
+    font-size: 13.5px;
+  }
+
+  .metro-premium .metro-stat-label {
+    font-size: 9.5px;
+    line-height: 1.3;
+  }
+
+  .metro-premium .metro-hero {
+    height: 250px;
+    border-radius: var(--m-radius-lg);
+    margin-bottom: 18px;
+  }
+
+  .metro-premium .metro-hero-img {
+    object-position: center 15%;
+  }
+
+  .metro-premium .metro-stats {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 22px;
+  }
+
+  .metro-premium .metro-stat-card {
+    padding: 12px 10px;
+    gap: 8px;
+  }
+
+  .metro-premium .metro-stat-icon-wrap {
+    width: 34px;
+    height: 34px;
+  }
+
+  .metro-premium .metro-nav-tabs {
+    gap: 2px;
+  }
+
+  .metro-premium .metro-tab-btn {
+    min-width: 100px;
+    min-height: 44px;
+    font-size: 11px;
+    padding: 8px 10px;
+  }
+
+  .metro-premium .metro-map-container {
+    height: 310px;
+  }
+
+  .metro-premium .metro-station-cards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .metro-premium .metro-footer-cta {
+    padding: 20px 16px;
+  }
+}
+
+/* Very Small Mobile (320px - 359px) */
+@media (max-width: 359px) {
+  .metro-premium .metro-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .metro-premium .metro-brand-mark {
+    width: 32px;
+    height: 32px;
+  }
+
+  .metro-premium .metro-tab-btn {
+    min-width: 80px;
+    min-height: 44px;
+    font-size: 10px;
+  }
+
+  .metro-premium .metro-map-container {
+    height: 270px;
+    min-height: 260px;
+  }
+
+  .metro-premium .metro-status-pill {
+    font-size: 9.5px;
+    padding: 3px 7px;
+  }
+}
+
+/* Ultra-wide / 4K Monitors (1920px+) */
+@media (min-width: 1920px) {
+  .metro-premium {
+    padding: 32px 64px 64px;
+  }
+
+  .metro-premium .metro-topbar,
+  .metro-premium .metro-hero,
+  .metro-premium .metro-stats,
+  .metro-premium .metro-main-section,
+  .metro-premium .metro-footer-cta,
+  .metro-premium .metro-footer-bar {
+    max-width: 1360px;
+  }
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .metro-premium *,
+  .metro-premium *::before,
+  .metro-premium *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

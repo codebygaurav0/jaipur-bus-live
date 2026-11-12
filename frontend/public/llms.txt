@@ -1,0 +1,26 @@
+# Jaipur Bus Live
+
+> Real-time JCTSL bus GPS tracking, route schedules, bus stops, and Jaipur Metro guide for commuters in Jaipur, Rajasthan, India.
+
+Jaipur Bus Live (JBL) provides commuter transit intelligence for the city of Jaipur. It tracks active Jaipur City Transport Services Limited (JCTSL) city buses with real-time GPS telemetry, offers direct route planning and bus stop lookup, and includes the official Jaipur Metro Pink Line guide and emergency SOS services.
+
+## Core Capabilities
+
+- **Real-Time Bus Tracking**: Live GPS coordinates, vehicle bearing, speed, and status (Moving, Slow, Stopped, Idle) for active JCTSL city buses.
+- **Route Catalog**: 54+ active bus routes covering Mansarovar, Amer, Sanganer, Badi Chaupar, Chhoti Chaupar, Vaishali Nagar, and Jagatpura.
+- **Bus Stops Directory**: 360+ verified and geo-referenced bus stops across the Jaipur metropolitan area with user distance calculation.
+- **Jaipur Metro Guide**: Pink Line corridor stations, fare stages, timetable, and interchange details.
+- **Emergency SOS**: One-touch emergency helplines including Police (112), Women Helpline (1090), and Ambulance (108).
+
+## Primary Resources
+
+- [Jaipur Bus Live Web App](https://jaipur-bus-live.web.app/): Main web application for real-time JCTSL bus tracking, routes, and stops
+- [Live Bus Telemetry API](https://jaipur-bus-live-5nvg.vercel.app/api/live-buses): Real-time GPS locations, bearing, and speeds of active JCTSL buses
+- [Bus Routes API](https://jaipur-bus-live-5nvg.vercel.app/api/routes): Complete directory of 54 active transit routes with ordered stop sequences
+- [Bus Stops API](https://jaipur-bus-live-5nvg.vercel.app/api/bus-stops): Geo-referenced catalog of 360+ verified bus stops across Jaipur
+
+## Optional
+
+- [AI Transit Catalog](https://jaipur-bus-live.web.app/ai-catalog.json): Structured JSON service manifest and machine-readable transit catalog
+- [Jaipur Metro Pink Line](https://jaipur-bus-live.web.app/#metro): Station details, interchange info, and fare structure
+- [Emergency Helplines Directory](https://jaipur-bus-live.web.app/#emergency): 24x7 emergency contacts for Jaipur public safety and medical aid

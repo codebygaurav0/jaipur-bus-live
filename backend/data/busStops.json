@@ -1,0 +1,2930 @@
+[
+  {
+    "bus_stop_id": "1",
+    "bus_stop_code": "DWP",
+    "bus_stop_name": "DWARKA PURI",
+    "latitude": "26.800795",
+    "longitude": "75.839675",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "2",
+    "bus_stop_code": "S16",
+    "bus_stop_name": "SECTOR 16",
+    "latitude": "26.804471",
+    "longitude": "75.83048",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "3",
+    "bus_stop_code": "BRM",
+    "bus_stop_name": "BHARO MANDIR",
+    "latitude": "26.802441",
+    "longitude": "75.826443",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "7",
+    "bus_stop_code": "S05",
+    "bus_stop_name": "SEC-5 JAGATPURA",
+    "latitude": "26.836656",
+    "longitude": "75.885030",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "8",
+    "bus_stop_code": "S03",
+    "bus_stop_name": "SEC-3 JAGATPURA",
+    "latitude": "26.836122",
+    "longitude": "75.873758",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "11",
+    "bus_stop_code": "SGT",
+    "bus_stop_name": "SANGANER THANA",
+    "latitude": "26.8192174",
+    "longitude": "75.796378",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "13",
+    "bus_stop_code": "RMN",
+    "bus_stop_name": "RAM MANDIR",
+    "latitude": "26.8289865",
+    "longitude": "75.794249",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "16",
+    "bus_stop_code": "DGP",
+    "bus_stop_name": "DURGAPURA",
+    "latitude": "26.84969",
+    "longitude": "75.79404",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "21",
+    "bus_stop_code": "SBM",
+    "bus_stop_name": "SABJI MANDI",
+    "latitude": "26.883595",
+    "longitude": "75.800736",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "24",
+    "bus_stop_code": "RBC",
+    "bus_stop_name": "RAMBAGH CIRCLE",
+    "latitude": "26.896461",
+    "longitude": "75.809931",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "28",
+    "bus_stop_code": "AJG",
+    "bus_stop_name": "AJMERI GATE",
+    "latitude": "26.91451",
+    "longitude": "75.81681",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "29",
+    "bus_stop_code": "SGG",
+    "bus_stop_name": "SANGANERI GATE",
+    "latitude": "26.9152",
+    "longitude": "75.82356",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "30",
+    "bus_stop_code": "GTG",
+    "bus_stop_name": "GHAT GATE",
+    "latitude": "26.91331",
+    "longitude": "75.83329",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "31",
+    "bus_stop_code": "SGR",
+    "bus_stop_name": "SANGANER",
+    "latitude": "26.81575",
+    "longitude": "75.78425",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "32",
+    "bus_stop_code": "RMR",
+    "bus_stop_name": "TARO KI KOOT",
+    "latitude": "26.8357642",
+    "longitude": "75.794043",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "34",
+    "bus_stop_code": "JHC",
+    "bus_stop_name": "GOPALPURA",
+    "latitude": "26.86628",
+    "longitude": "75.79669",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "36",
+    "bus_stop_code": "GLA",
+    "bus_stop_name": "TONK PHATAK",
+    "latitude": "26.87932",
+    "longitude": "75.79897",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "38",
+    "bus_stop_code": "TKP",
+    "bus_stop_name": "LAL KOTHI",
+    "latitude": "26.89156",
+    "longitude": "75.80592",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "41",
+    "bus_stop_code": "RBH",
+    "bus_stop_name": "SMS HOSPITAL",
+    "latitude": "26.90691",
+    "longitude": "75.81507",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "45",
+    "bus_stop_code": "SGE",
+    "bus_stop_name": "J S GATE",
+    "latitude": "26.93513",
+    "longitude": "75.83332",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "46",
+    "bus_stop_code": "BIR",
+    "bus_stop_name": "RAMGARH MODE",
+    "latitude": "26.94613",
+    "longitude": "75.84063",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "47",
+    "bus_stop_code": "SHK",
+    "bus_stop_name": "JAL MAHAL",
+    "latitude": "26.95248",
+    "longitude": "75.84184",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "48",
+    "bus_stop_code": "JGE",
+    "bus_stop_name": "KANAK GHATI",
+    "latitude": "26.96326",
+    "longitude": "75.84623",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "50",
+    "bus_stop_code": "JML",
+    "bus_stop_name": "MGH",
+    "latitude": "26.770306",
+    "longitude": "75.852889",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "51",
+    "bus_stop_code": "KKI",
+    "bus_stop_name": "GONER PHATAK",
+    "latitude": "26.769016",
+    "longitude": "75.84644",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "52",
+    "bus_stop_code": "AMR",
+    "bus_stop_name": "CHATRALA CIRCLE",
+    "latitude": "26.778695",
+    "longitude": "75.841858",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "53",
+    "bus_stop_code": "PRC",
+    "bus_stop_name": "PODAR CIRCLE",
+    "latitude": "26.781158",
+    "longitude": "75.828846",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "54",
+    "bus_stop_code": "IAG",
+    "bus_stop_name": "INDIA GATE",
+    "latitude": "26.78548",
+    "longitude": "75.82257",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "55",
+    "bus_stop_code": "SEC8",
+    "bus_stop_name": "SECTOR 8",
+    "latitude": "26.79675",
+    "longitude": "75.81397",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "56",
+    "bus_stop_code": "SEC5",
+    "bus_stop_name": "SECTOR 5",
+    "latitude": "26.80384",
+    "longitude": "75.80832",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "57",
+    "bus_stop_code": "GHA",
+    "bus_stop_name": "GOSHALA",
+    "latitude": "26.80879",
+    "longitude": "75.80576",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "59",
+    "bus_stop_code": "JTA",
+    "bus_stop_name": "JHOTWARA",
+    "latitude": "26.94244",
+    "longitude": "75.76451",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "60",
+    "bus_stop_code": "JTN",
+    "bus_stop_name": "JASWANT NAGAR",
+    "latitude": "26.9304",
+    "longitude": "75.75054",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "61",
+    "bus_stop_code": "KTPA",
+    "bus_stop_name": "KHATIPURA",
+    "latitude": "26.92305",
+    "longitude": "75.74547",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "65",
+    "bus_stop_code": "GIT",
+    "bus_stop_name": "GANDHI PATH",
+    "latitude": "26.90512",
+    "longitude": "75.74584",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "66",
+    "bus_stop_code": "PIC",
+    "bus_stop_name": "PURANI CHUNGI",
+    "latitude": "26.89821",
+    "longitude": "75.75912",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "67",
+    "bus_stop_code": "SAL",
+    "bus_stop_name": "SODALA",
+    "latitude": "26.90152",
+    "longitude": "75.77253",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "68",
+    "bus_stop_code": "22G",
+    "bus_stop_name": "22 GODAM",
+    "latitude": "26.90239",
+    "longitude": "75.79296",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "72",
+    "bus_stop_code": "KNY",
+    "bus_stop_name": "KHANIYA",
+    "latitude": "26.89485",
+    "longitude": "75.86305",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "73",
+    "bus_stop_code": "MIK",
+    "bus_stop_name": "MURGI KHANA",
+    "latitude": "26.88896",
+    "longitude": "75.88028",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "74",
+    "bus_stop_code": "PMN",
+    "bus_stop_name": "PREM NAGAR",
+    "latitude": "26.88868",
+    "longitude": "75.88223",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "75",
+    "bus_stop_code": "BWI",
+    "bus_stop_name": "BAWDI",
+    "latitude": "26.88345",
+    "longitude": "75.90195",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "76",
+    "bus_stop_code": "CIN",
+    "bus_stop_name": "CHUNGI NAKA",
+    "latitude": "26.8817512",
+    "longitude": "75.9099777",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "77",
+    "bus_stop_code": "BRA",
+    "bus_stop_name": "BAGARANA",
+    "latitude": "26.87789",
+    "longitude": "75.92928",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "78",
+    "bus_stop_code": "KOA",
+    "bus_stop_name": "KANOTA",
+    "latitude": "26.87457",
+    "longitude": "75.94918",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "79",
+    "bus_stop_code": "DMA",
+    "bus_stop_name": "DAYARAMPURA",
+    "latitude": "26.86267",
+    "longitude": "75.9809",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "80",
+    "bus_stop_code": "KHA",
+    "bus_stop_name": "KHOKHAWLA",
+    "latitude": "26.85689",
+    "longitude": "76.00274",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "81",
+    "bus_stop_code": "KEI",
+    "bus_stop_name": "KHEDI",
+    "latitude": "26.85489",
+    "longitude": "76.0118",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "82",
+    "bus_stop_code": "BAD",
+    "bus_stop_name": "BANADA MOD",
+    "latitude": "26.85619",
+    "longitude": "76.02013",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "83",
+    "bus_stop_code": "BIK",
+    "bus_stop_name": "BASSI CHAK",
+    "latitude": "26.85701",
+    "longitude": "76.0525",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "84",
+    "bus_stop_code": "BSI",
+    "bus_stop_name": "BASSI  ",
+    "latitude": "26.8356",
+    "longitude": "76.05182",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "91",
+    "bus_stop_code": "CKU",
+    "bus_stop_name": "CHAKSU",
+    "latitude": "26.59889",
+    "longitude": "75.94808",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "92",
+    "bus_stop_code": "STA",
+    "bus_stop_name": "SHITALA",
+    "latitude": "26.64212",
+    "longitude": "75.93342",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "93",
+    "bus_stop_code": "YIA",
+    "bus_stop_name": "YARLIPURA",
+    "latitude": "26.6766",
+    "longitude": "75.91255",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "94",
+    "bus_stop_code": "SDA",
+    "bus_stop_name": "SHIVDASPURA",
+    "latitude": "26.7079",
+    "longitude": "75.89499",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "95",
+    "bus_stop_code": "NKR",
+    "bus_stop_name": "NANAKPURA",
+    "latitude": "26.72553",
+    "longitude": "75.87572",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "96",
+    "bus_stop_code": "NGY",
+    "bus_stop_name": "NAGALIYA",
+    "latitude": "26.73544",
+    "longitude": "75.86846",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "97",
+    "bus_stop_code": "RSI",
+    "bus_stop_name": "RADHA SWAMI",
+    "latitude": "26.74",
+    "longitude": "75.86386",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "98",
+    "bus_stop_code": "BIA",
+    "bus_stop_name": "BILWA",
+    "latitude": "26.74988",
+    "longitude": "75.85411",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "99",
+    "bus_stop_code": "12M",
+    "bus_stop_name": "12 MILE",
+    "latitude": "26.76895",
+    "longitude": "75.83537",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "100",
+    "bus_stop_code": "SPR",
+    "bus_stop_name": "SITAPURA",
+    "latitude": "26.7815",
+    "longitude": "75.8253",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "101",
+    "bus_stop_code": "BGU",
+    "bus_stop_name": "BAGRU",
+    "latitude": "26.8116",
+    "longitude": "75.54206",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "102",
+    "bus_stop_code": "DAI",
+    "bus_stop_name": "DAMBI",
+    "latitude": "26.82568",
+    "longitude": "75.56031",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "103",
+    "bus_stop_code": "HYG",
+    "bus_stop_name": "HIGHWAY KING",
+    "latitude": "26.82935",
+    "longitude": "75.57043",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "104",
+    "bus_stop_code": "MIL",
+    "bus_stop_name": "MANIPAL",
+    "latitude": "26.84326",
+    "longitude": "75.56766",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "105",
+    "bus_stop_code": "SRB",
+    "bus_stop_name": "SANJH RIVER BAGUS MODE",
+    "latitude": "26.8619",
+    "longitude": "75.58313",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "106",
+    "bus_stop_code": "SJR",
+    "bus_stop_name": "SANJHARIYA",
+    "latitude": "26.85641",
+    "longitude": "75.59936",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "107",
+    "bus_stop_code": "TKA",
+    "bus_stop_name": "THIKARIYA",
+    "latitude": "26.84562",
+    "longitude": "75.62303",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "108",
+    "bus_stop_code": "BKB",
+    "bus_stop_name": "BAD KE BALAJI",
+    "latitude": "26.84972",
+    "longitude": "75.63648",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "109",
+    "bus_stop_code": "RDA",
+    "bus_stop_name": "RAMCHANDRAPURA",
+    "latitude": "26.85179",
+    "longitude": "75.64359",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "110",
+    "bus_stop_code": "MPD",
+    "bus_stop_name": "MAHAPURA MOD",
+    "latitude": "26.86173",
+    "longitude": "75.67306",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "111",
+    "bus_stop_code": "BKA",
+    "bus_stop_name": "BHAKROTA",
+    "latitude": "26.87078",
+    "longitude": "75.69744",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "112",
+    "bus_stop_code": "KHP",
+    "bus_stop_name": "KESHAV PURA",
+    "latitude": "26.970486",
+    "longitude": "75.762201",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "113",
+    "bus_stop_code": "KNR",
+    "bus_stop_name": "KAMLA NEHRU NAGAR",
+    "latitude": "26.87811",
+    "longitude": "75.71226",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "114",
+    "bus_stop_code": "PRH",
+    "bus_stop_name": "POWER HOUSE",
+    "latitude": "26.93079",
+    "longitude": "75.80113",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "115",
+    "bus_stop_code": "HAP",
+    "bus_stop_name": "HEERA PURA",
+    "latitude": "26.88922",
+    "longitude": "75.738052",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "116",
+    "bus_stop_code": "DCM",
+    "bus_stop_name": "DCM",
+    "latitude": "26.89416",
+    "longitude": "75.74764",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "117",
+    "bus_stop_code": "KSD",
+    "bus_stop_name": "KINGS ROAD",
+    "latitude": "26.89585",
+    "longitude": "75.75109",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "119",
+    "bus_stop_code": "MRN",
+    "bus_stop_name": "MAJDUR NAGAR",
+    "latitude": "26.90957",
+    "longitude": "75.78135",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "120",
+    "bus_stop_code": "HHI",
+    "bus_stop_name": "HATHROI",
+    "latitude": "26.9123",
+    "longitude": "75.78753",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "121",
+    "bus_stop_code": "SIR",
+    "bus_stop_name": "SHALIMAR",
+    "latitude": "26.91672",
+    "longitude": "75.80044",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "122",
+    "bus_stop_code": "CDE",
+    "bus_stop_name": "CHANDPOLE",
+    "latitude": "26.92581",
+    "longitude": "75.80768",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "123",
+    "bus_stop_code": "WIA",
+    "bus_stop_name": "WATIKA",
+    "latitude": "26.713763",
+    "longitude": "75.804356",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "124",
+    "bus_stop_code": "BTL",
+    "bus_stop_name": "BHATAWALA",
+    "latitude": "26.73719",
+    "longitude": "75.817608",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "125",
+    "bus_stop_code": "KLA",
+    "bus_stop_name": "KALLAWALA",
+    "latitude": "26.746164",
+    "longitude": "75.82037",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "126",
+    "bus_stop_code": "AWA",
+    "bus_stop_name": "ASHAWALA",
+    "latitude": "26.755261",
+    "longitude": "75.823088",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "127",
+    "bus_stop_code": "MKP",
+    "bus_stop_name": "MACHCH KI PIPALI",
+    "latitude": "26.881706",
+    "longitude": "75.877604",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "128",
+    "bus_stop_code": "LYS",
+    "bus_stop_name": "LUNIYAWAS",
+    "latitude": "26.866478",
+    "longitude": "75.892146",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "129",
+    "bus_stop_code": "VYM",
+    "bus_stop_name": "VIDHIYA MOD",
+    "latitude": "26.858733",
+    "longitude": "75.893461",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "130",
+    "bus_stop_code": "GDA",
+    "bus_stop_name": "GOVINDPURA (24)",
+    "latitude": "26.94976",
+    "longitude": "75.71071",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "131",
+    "bus_stop_code": "RYK",
+    "bus_stop_name": "RAILWAY PHATAK",
+    "latitude": "26.836058",
+    "longitude": "75.89824",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "132",
+    "bus_stop_code": "DNI",
+    "bus_stop_name": "DANTLI",
+    "latitude": "26.818793",
+    "longitude": "75.901476",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "133",
+    "bus_stop_code": "SRI",
+    "bus_stop_name": "SIROLI",
+    "latitude": "26.802966",
+    "longitude": "75.903918",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "134",
+    "bus_stop_code": "GNR",
+    "bus_stop_name": "GONER",
+    "latitude": "26.785755",
+    "longitude": "75.911215",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "135",
+    "bus_stop_code": "PHI",
+    "bus_stop_name": "PANCH BATI",
+    "latitude": "26.91379",
+    "longitude": "75.8088",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "136",
+    "bus_stop_code": "GHL",
+    "bus_stop_name": "GOVT.HOSTEL",
+    "latitude": "26.916901",
+    "longitude": "75.80052",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "139",
+    "bus_stop_code": "CKA",
+    "bus_stop_name": "CHINKARA",
+    "latitude": "26.93263",
+    "longitude": "75.78492",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "141",
+    "bus_stop_code": "CUA",
+    "bus_stop_name": "CHOMU PULIYA",
+    "latitude": "26.94",
+    "longitude": "75.77485",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "142",
+    "bus_stop_code": "LCE",
+    "bus_stop_name": "LATA CIRCLE",
+    "latitude": "26.94278",
+    "longitude": "75.76263",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "143",
+    "bus_stop_code": "BIG",
+    "bus_stop_name": "BORING",
+    "latitude": "26.943758",
+    "longitude": "75.746715",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "144",
+    "bus_stop_code": "JWK",
+    "bus_stop_name": "JHOTWARA KANTA",
+    "latitude": "26.944354",
+    "longitude": "75.743610",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "145",
+    "bus_stop_code": "JIG",
+    "bus_stop_name": "JOSHI MARG",
+    "latitude": "26.945280",
+    "longitude": "75.736771",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "146",
+    "bus_stop_code": "RNG",
+    "bus_stop_name": "RAVAN GATE",
+    "latitude": "26.94838",
+    "longitude": "75.71817",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "147",
+    "bus_stop_code": "GDR",
+    "bus_stop_name": "GOBINDPURA",
+    "latitude": "26.951516",
+    "longitude": "75.701886",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "148",
+    "bus_stop_code": "AKC",
+    "bus_stop_name": "ALKA CINEMA",
+    "latitude": "26.96699",
+    "longitude": "75.77245",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "152",
+    "bus_stop_code": "26",
+    "bus_stop_name": "AMBA BARI",
+    "latitude": "26.93986",
+    "longitude": "75.77744",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "153",
+    "bus_stop_code": "TBHOS",
+    "bus_stop_name": "T.B.HOSPITAL",
+    "latitude": "30.882370",
+    "longitude": "79.800003",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "156",
+    "bus_stop_code": "COLLE",
+    "bus_stop_name": "COLLECTORATE",
+    "latitude": "26.926786",
+    "longitude": "75.791901",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "157",
+    "bus_stop_code": "KHAK",
+    "bus_stop_name": "KHAKSHA KHOTI",
+    "latitude": "26.922014",
+    "longitude": "75.793676",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "161",
+    "bus_stop_code": "SADHU",
+    "bus_stop_name": "SADHUWALA",
+    "latitude": "26.85424",
+    "longitude": "75.57716",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "166",
+    "bus_stop_code": "TRANS",
+    "bus_stop_name": "TRANSPORT NGR",
+    "latitude": "26.90445",
+    "longitude": "75.84383",
+    "bus_stop_type": "Bus Stand"
+  },
+  {
+    "bus_stop_id": "168",
+    "bus_stop_code": "AGARW",
+    "bus_stop_name": "AGARWAL FARM",
+    "latitude": "26.84186",
+    "longitude": "75.77017",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "169",
+    "bus_stop_code": "VIJAY",
+    "bus_stop_name": "VIJAY PATH",
+    "latitude": "26.84785",
+    "longitude": "75.76995",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "171",
+    "bus_stop_code": "VTROA",
+    "bus_stop_name": "VT ROAD",
+    "latitude": "26.8604",
+    "longitude": "75.76384",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "172",
+    "bus_stop_code": "RAJAT",
+    "bus_stop_name": "RAJAT PATH",
+    "latitude": "26.882370",
+    "longitude": "75.800003",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "176",
+    "bus_stop_code": "GANGA",
+    "bus_stop_name": "GANGA JAMUNA",
+    "latitude": "26.8796",
+    "longitude": "75.76159",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "177",
+    "bus_stop_code": "GURJA",
+    "bus_stop_name": "GURJAR KI THADI",
+    "latitude": "26.88058",
+    "longitude": "75.76716",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "183",
+    "bus_stop_code": "SURYA",
+    "bus_stop_name": "SURYA NGR",
+    "latitude": "26.8736",
+    "longitude": "75.77695",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "184",
+    "bus_stop_code": "RIDHI",
+    "bus_stop_name": "RIDHI SIDHI",
+    "latitude": "26.8723",
+    "longitude": "75.77868",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "188",
+    "bus_stop_code": "GPO",
+    "bus_stop_name": "GPO",
+    "latitude": "26.91676",
+    "longitude": "75.80072",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "190",
+    "bus_stop_code": "KANTA",
+    "bus_stop_name": "KANTA",
+    "latitude": "26.94637",
+    "longitude": "75.74398",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "193",
+    "bus_stop_code": "RAILW",
+    "bus_stop_name": "RAILWAY STATION",
+    "latitude": "26.92009",
+    "longitude": "75.78929",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "194",
+    "bus_stop_code": "ESICH",
+    "bus_stop_name": "ESIC HOSPITAL",
+    "latitude": "26.90608",
+    "longitude": "75.77724",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "195",
+    "bus_stop_code": "HIGHC",
+    "bus_stop_name": "HIGH COURT",
+    "latitude": "26.89906",
+    "longitude": "75.79935",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "196",
+    "bus_stop_code": "BALTI",
+    "bus_stop_name": "BALTI FACTOR",
+    "latitude": "26.8847",
+    "longitude": "75.89733",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "197",
+    "bus_stop_code": "AMARP",
+    "bus_stop_name": "AMARPALI CIRCLE",
+    "latitude": "26.91158",
+    "longitude": "75.74365",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "198",
+    "bus_stop_code": "TEGOR",
+    "bus_stop_name": "VAISHALI CIRCLE",
+    "latitude": "26.91535",
+    "longitude": "75.74377",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "199",
+    "bus_stop_code": "DKP",
+    "bus_stop_name": "DADI KA PHATAK",
+    "latitude": "26.9684",
+    "longitude": "75.7545",
+    "bus_stop_type": "Bus Stand"
+  },
+  {
+    "bus_stop_id": "200",
+    "bus_stop_code": "MFARM",
+    "bus_stop_name": "MAHARANI FARM",
+    "latitude": "26.84856",
+    "longitude": "75.77775",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "201",
+    "bus_stop_code": "MNAGA",
+    "bus_stop_name": "MAHAVEER NAGAR",
+    "latitude": "26.85124",
+    "longitude": "75.79438",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "203",
+    "bus_stop_code": "SKGAT",
+    "bus_stop_name": "SAYEED KA GATTA",
+    "latitude": "26.8659",
+    "longitude": "75.7967",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "204",
+    "bus_stop_code": "GNMOD",
+    "bus_stop_name": "GANDHI NAGAR MOD",
+    "latitude": "26.88686",
+    "longitude": "75.80242",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "205",
+    "bus_stop_code": "NSCIR",
+    "bus_stop_name": "NARAYAN SINGH CIRCLE",
+    "latitude": "26.89894",
+    "longitude": "75.81179",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "208",
+    "bus_stop_code": "MYANK",
+    "bus_stop_name": "MAYANK ",
+    "latitude": "26.92417",
+    "longitude": "75.80403",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "209",
+    "bus_stop_code": "PTORY",
+    "bus_stop_name": "PITAL FACTORY",
+    "latitude": "26.93283",
+    "longitude": "75.79785",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "210",
+    "bus_stop_code": "PKTAN",
+    "bus_stop_name": "PANI KI TANKI",
+    "latitude": "26.93298",
+    "longitude": "75.7978",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "211",
+    "bus_stop_code": "MKCHA",
+    "bus_stop_name": "MOCHIYO KI CHABIL",
+    "latitude": "26.94335",
+    "longitude": "75.7995",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "212",
+    "bus_stop_code": "SNAGA",
+    "bus_stop_name": "SHASTRI NAGAR",
+    "latitude": "26.94336",
+    "longitude": "75.7894",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "213",
+    "bus_stop_code": "RSCHO",
+    "bus_stop_name": "RESIDENCY SCHOOL",
+    "latitude": "26.95785",
+    "longitude": "75.7895",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "214",
+    "bus_stop_code": "VNAGA",
+    "bus_stop_name": "VIDHYADHAR NAGAR",
+    "latitude": "26.95776",
+    "longitude": "75.79155",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "215",
+    "bus_stop_code": "MAMOD",
+    "bus_stop_name": "MANDIR MOD",
+    "latitude": "26.95945",
+    "longitude": "75.78688",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "216",
+    "bus_stop_code": "CRMOD",
+    "bus_stop_name": "CROSS ROAD MOD",
+    "latitude": "26.96257",
+    "longitude": "75.78041",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "217",
+    "bus_stop_code": "VTHAN",
+    "bus_stop_name": "VIDHYADHAR THANA",
+    "latitude": "26.9623",
+    "longitude": "75.7856",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "219",
+    "bus_stop_code": "MURLI",
+    "bus_stop_name": "MURLIPURA",
+    "latitude": "26.97096",
+    "longitude": "75.77149",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "220",
+    "bus_stop_code": "KPLAC",
+    "bus_stop_name": "KEDIA PALACE",
+    "latitude": "26.97065",
+    "longitude": "75.77251",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "221",
+    "bus_stop_code": "28",
+    "bus_stop_name": "RENWAL",
+    "latitude": "26.69311",
+    "longitude": "75.67985",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "222",
+    "bus_stop_code": "PMOD",
+    "bus_stop_name": "PAHADIYA MOD",
+    "latitude": "26.713",
+    "longitude": "75.69268",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "223",
+    "bus_stop_code": "RNMOD",
+    "bus_stop_name": "ROHINI NAGAR MOD",
+    "latitude": "26.7201",
+    "longitude": "75.6982",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "224",
+    "bus_stop_code": "TILAW",
+    "bus_stop_name": "TILAWALA",
+    "latitude": "26.72217",
+    "longitude": "75.70063",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "225",
+    "bus_stop_code": "BANYA",
+    "bus_stop_name": "BANYAWALI",
+    "latitude": "26.73134",
+    "longitude": "75.71463",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "226",
+    "bus_stop_code": "RATLA",
+    "bus_stop_name": "RATLAYA MOD",
+    "latitude": "26.76357",
+    "longitude": "75.74846",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "227",
+    "bus_stop_code": "JAGAN",
+    "bus_stop_name": "JAGANNATHPURA",
+    "latitude": "26.78447",
+    "longitude": "75.76177",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "228",
+    "bus_stop_code": "SHMOD",
+    "bus_stop_name": "SHIKARPURA MOD",
+    "latitude": "26.78447",
+    "longitude": "75.76277",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "229",
+    "bus_stop_code": "MPURA",
+    "bus_stop_name": "MADRAMPURA",
+    "latitude": "26.7823",
+    "longitude": "75.75979",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "230",
+    "bus_stop_code": "MMMOD",
+    "bus_stop_name": "MUHANA MANDHI MOD",
+    "latitude": "26.79857",
+    "longitude": "75.77039",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "231",
+    "bus_stop_code": "KKDHA",
+    "bus_stop_name": "KUMAWATO KI DHANI ",
+    "latitude": "26.80457",
+    "longitude": "75.78354",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "232",
+    "bus_stop_code": "RPULI",
+    "bus_stop_name": "RAILWAY PULIYA",
+    "latitude": "26.81024",
+    "longitude": "75.7842",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "233",
+    "bus_stop_code": "MGATE",
+    "bus_stop_name": "MALPURA GATE",
+    "latitude": "26.81256",
+    "longitude": "75.7842",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "234",
+    "bus_stop_code": "STADI",
+    "bus_stop_name": "STADIUM",
+    "latitude": "26.81892",
+    "longitude": "75.78364",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "235",
+    "bus_stop_code": "KNAGA",
+    "bus_stop_name": "KALYAN NAGAR",
+    "latitude": "26.8253998",
+    "longitude": "75.794713",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "236",
+    "bus_stop_code": "CPLEX",
+    "bus_stop_name": "CITY PLEX",
+    "latitude": "26.8371",
+    "longitude": "75.79347",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "237",
+    "bus_stop_code": "BALAW",
+    "bus_stop_name": "BALAWALA",
+    "latitude": "26.74831",
+    "longitude": "75.73303",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "238",
+    "bus_stop_code": "NVHAR",
+    "bus_stop_name": "NARAIN VIHAR",
+    "latitude": "26.87372",
+    "longitude": "75.72227",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "239",
+    "bus_stop_code": "GAMOD",
+    "bus_stop_name": "GAJSINGHPURA MOD",
+    "latitude": "26.87577",
+    "longitude": "75.72585",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "240",
+    "bus_stop_code": "VAGAR",
+    "bus_stop_name": "VARDHMAN NAGAR ",
+    "latitude": "26.8758",
+    "longitude": "75.7256",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "241",
+    "bus_stop_code": "BADAR",
+    "bus_stop_name": "BADARWAS",
+    "latitude": "26.87571",
+    "longitude": "75.72559",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "242",
+    "bus_stop_code": "MMETR",
+    "bus_stop_name": "MANSAROWER METRO ",
+    "latitude": "26.87952",
+    "longitude": "75.75007",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "244",
+    "bus_stop_code": "TNAGA",
+    "bus_stop_name": "TRIVENI NAGAR",
+    "latitude": "26.8641",
+    "longitude": "75.78409",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "245",
+    "bus_stop_code": "GPMOD",
+    "bus_stop_name": "GOPAL PURA MOD",
+    "latitude": "26.86586",
+    "longitude": "75.79633",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "247",
+    "bus_stop_code": "HWALA",
+    "bus_stop_name": "HEERA WALA",
+    "latitude": "26.899059",
+    "longitude": "75.960554",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "248",
+    "bus_stop_code": "GWALA",
+    "bus_stop_name": "GILA WALA",
+    "latitude": "26.91442",
+    "longitude": "75.96834",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "249",
+    "bus_stop_code": "NAYAL",
+    "bus_stop_name": "NAYALA",
+    "latitude": "26.92102",
+    "longitude": "75.97484",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "250",
+    "bus_stop_code": "BKHA",
+    "bus_stop_name": "BHAIRU KHEJDA",
+    "latitude": "27.04665",
+    "longitude": "75.78873",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "251",
+    "bus_stop_code": "TDEPO",
+    "bus_stop_name": "TODI DEPOT",
+    "latitude": "27.033432",
+    "longitude": "75.784661",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "252",
+    "bus_stop_code": "TOMOD",
+    "bus_stop_name": "TODI MOD",
+    "latitude": "27.02891",
+    "longitude": "75.76897",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "253",
+    "bus_stop_code": "HARMA",
+    "bus_stop_name": "HARMARA",
+    "latitude": "27.01735",
+    "longitude": "75.76955",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "254",
+    "bus_stop_code": "NIMOD",
+    "bus_stop_name": "NINDHAR MOD",
+    "latitude": "27.01246",
+    "longitude": "75.76931",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "255",
+    "bus_stop_code": "VKI14",
+    "bus_stop_name": "VKI NO. 14",
+    "latitude": "26.99722",
+    "longitude": "75.77077",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "256",
+    "bus_stop_code": "VKI12",
+    "bus_stop_name": "VKI NO. 12",
+    "latitude": "26.99301",
+    "longitude": "75.77201",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "257",
+    "bus_stop_code": "VKI9",
+    "bus_stop_name": "VKI NO. 9",
+    "latitude": "26.98686",
+    "longitude": "75.77323",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "258",
+    "bus_stop_code": "VK8",
+    "bus_stop_name": "VKI NO. 8",
+    "latitude": "26.98229",
+    "longitude": "75.77428",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "259",
+    "bus_stop_code": "VKI5",
+    "bus_stop_name": "VKI NO. 5",
+    "latitude": "26.97918",
+    "longitude": "75.77386",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "260",
+    "bus_stop_code": "VKI1",
+    "bus_stop_name": "VKI NO. 1",
+    "latitude": "26.97061",
+    "longitude": "75.77245",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "261",
+    "bus_stop_code": "MSCHO",
+    "bus_stop_name": "M. SCHOOL",
+    "latitude": "26.96624",
+    "longitude": "75.77225",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "262",
+    "bus_stop_code": "KEHOS",
+    "bus_stop_name": "KHETAN HOS",
+    "latitude": "26.96074",
+    "longitude": "75.77155",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "263",
+    "bus_stop_code": "DLAJI",
+    "bus_stop_name": "DHER KA BALAJI",
+    "latitude": "26.95558",
+    "longitude": "75.77158",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "264",
+    "bus_stop_code": "BETAN",
+    "bus_stop_name": "BHAWANI NIKETAN",
+    "latitude": "26.94612",
+    "longitude": "75.77321",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "266",
+    "bus_stop_code": "COPAR",
+    "bus_stop_name": "CHOTI CHOPAR",
+    "latitude": "26.92476",
+    "longitude": "75.81877",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "267",
+    "bus_stop_code": "BOPAR",
+    "bus_stop_name": "BADI CHOPAR",
+    "latitude": "26.92312",
+    "longitude": "75.82663",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "268",
+    "bus_stop_code": "RAPAD",
+    "bus_stop_name": "RAMGANJ CHOPAD",
+    "latitude": "26.9209",
+    "longitude": "75.83568",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "270",
+    "bus_stop_code": "JHATA",
+    "bus_stop_name": "JAGATPURA PHATAK",
+    "latitude": "26.83598",
+    "longitude": "75.83541",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "271",
+    "bus_stop_code": "MTOWN",
+    "bus_stop_name": "MODAL TOWN",
+    "latitude": "26.84511",
+    "longitude": "75.82926",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "274",
+    "bus_stop_code": "ARCLE",
+    "bus_stop_name": "APEX CIRCLE",
+    "latitude": "26.85844",
+    "longitude": "75.82383",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "276",
+    "bus_stop_code": "BOTHI",
+    "bus_stop_name": "BAIJI KI KOTHI",
+    "latitude": "26.86792",
+    "longitude": "75.82261",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "277",
+    "bus_stop_code": "RTO",
+    "bus_stop_name": "RTO",
+    "latitude": "26.87557",
+    "longitude": "75.82054",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "278",
+    "bus_stop_code": "GRCLE",
+    "bus_stop_name": "GANDHI CIRCLE",
+    "latitude": "26.87685",
+    "longitude": "75.82247",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "280",
+    "bus_stop_code": "MLAGE",
+    "bus_stop_name": "MAHARANI COLLAGE",
+    "latitude": "26.9117",
+    "longitude": "75.81634",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "282",
+    "bus_stop_code": "SCAMP",
+    "bus_stop_name": "SINDHI CAMP",
+    "latitude": "26.92298",
+    "longitude": "75.80186",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "284",
+    "bus_stop_code": "CHINK",
+    "bus_stop_name": "CHINKARA",
+    "latitude": "26.93263",
+    "longitude": "75.78492",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "285",
+    "bus_stop_code": "RANTA",
+    "bus_stop_name": "RICCO KANTA",
+    "latitude": "26.884077",
+    "longitude": "75.953155",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "286",
+    "bus_stop_code": "SAGAR",
+    "bus_stop_name": "SUMER NAGAR",
+    "latitude": "26.83922",
+    "longitude": "75.76782",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "287",
+    "bus_stop_code": "ICG",
+    "bus_stop_name": "ICG",
+    "latitude": "26.84321",
+    "longitude": "75.76785",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "288",
+    "bus_stop_code": "SFSLE",
+    "bus_stop_name": "SFS CIRCLE",
+    "latitude": "26.8403",
+    "longitude": "75.77415",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "289",
+    "bus_stop_code": "SPATH",
+    "bus_stop_name": "SHIPRA PATH",
+    "latitude": "26.8434",
+    "longitude": "75.77758",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "290",
+    "bus_stop_code": "DTION",
+    "bus_stop_name": "DURGAPURA STATION",
+    "latitude": "26.85645",
+    "longitude": "75.78645",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "292",
+    "bus_stop_code": "SHOWK",
+    "bus_stop_name": "SUBHASH CHOWK",
+    "latitude": "26.92973",
+    "longitude": "75.82886",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "293",
+    "bus_stop_code": "JSATE",
+    "bus_stop_name": "JORAWER SINGH GATE",
+    "latitude": "26.93526",
+    "longitude": "75.83346",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "294",
+    "bus_stop_code": "GANAR",
+    "bus_stop_name": "GOVIND NAGAR",
+    "latitude": "26.93983",
+    "longitude": "75.83729",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "296",
+    "bus_stop_code": "JKHOR",
+    "bus_stop_name": "JAISINGHPURA KHOR",
+    "latitude": "26.95114",
+    "longitude": "75.86293",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "297",
+    "bus_stop_code": "KPIYA",
+    "bus_stop_name": "KHIRNI PHATAK PULIYA",
+    "latitude": "26.932775",
+    "longitude": "75.730331",
+    "bus_stop_type": "Bus Stand"
+  },
+  {
+    "bus_stop_id": "298",
+    "bus_stop_code": "PLIYA",
+    "bus_stop_name": "PANCHAYALA PULIYA",
+    "latitude": "26.92053",
+    "longitude": "75.73048",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "299",
+    "bus_stop_code": "BMIYA",
+    "bus_stop_name": "BAJRI MANDI PULIYA",
+    "latitude": "26.91513",
+    "longitude": "75.7295",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "300",
+    "bus_stop_code": "KLACE",
+    "bus_stop_name": "KARNI PLACE",
+    "latitude": "26.91143",
+    "longitude": "75.72969",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "301",
+    "bus_stop_code": "CLIYA",
+    "bus_stop_name": "CHITRKOOT PULIYA",
+    "latitude": "26.90547",
+    "longitude": "75.72912",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "303",
+    "bus_stop_code": "SUNDA",
+    "bus_stop_name": "SUNDAR NAGAR",
+    "latitude": "26.88565",
+    "longitude": "75.73909",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "304",
+    "bus_stop_code": "NTPNA",
+    "bus_stop_name": "NEW TP NAGAR",
+    "latitude": "26.87642",
+    "longitude": "75.74159",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "305",
+    "bus_stop_code": "DKATA",
+    "bus_stop_name": "DHARAM KATA",
+    "latitude": "26.8797",
+    "longitude": "75.74309",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "306",
+    "bus_stop_code": "MNMOD",
+    "bus_stop_name": "MAHESH NAGAR MOD",
+    "latitude": "26.87752",
+    "longitude": "75.77281",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "308",
+    "bus_stop_code": "TRILE",
+    "bus_stop_name": "TRIMURTI CIRCLE",
+    "latitude": "26.89893",
+    "longitude": "75.81565",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "309",
+    "bus_stop_code": "DSCLE",
+    "bus_stop_name": "DHARAM SINGH CIRCLE",
+    "latitude": "26.89949",
+    "longitude": "75.81888",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "310",
+    "bus_stop_code": "RPARK",
+    "bus_stop_name": "RAJA PARK ",
+    "latitude": "26.89693",
+    "longitude": "75.82643",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "311",
+    "bus_stop_code": "BHANA",
+    "bus_stop_name": "BARAF KHANA",
+    "latitude": "26.89907",
+    "longitude": "75.83331",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "312",
+    "bus_stop_code": "MITAL",
+    "bus_stop_name": "MANTAL HOSPITAL",
+    "latitude": "26.90331",
+    "longitude": "75.83736",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "313",
+    "bus_stop_code": "TPNMO",
+    "bus_stop_name": "TP NAGAR MOD",
+    "latitude": "26.90682",
+    "longitude": "75.84082",
+    "bus_stop_type": "Bus Stand"
+  },
+  {
+    "bus_stop_id": "315",
+    "bus_stop_code": "MAGAR",
+    "bus_stop_name": "MALVIYA NAGAR",
+    "latitude": "26.841631",
+    "longitude": "75.808349",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "316",
+    "bus_stop_code": "SECTO",
+    "bus_stop_name": "SECTOR 10",
+    "latitude": "26.799106",
+    "longitude": "75.817727",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "317",
+    "bus_stop_code": "SEC11",
+    "bus_stop_name": "SECTOR 11",
+    "latitude": "26.799806",
+    "longitude": "75.821568",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "318",
+    "bus_stop_code": "SEC15",
+    "bus_stop_name": "SECTOR 15",
+    "latitude": "26.842316",
+    "longitude": "75.814191",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "319",
+    "bus_stop_code": "SECT3",
+    "bus_stop_name": "SECTOR 3",
+    "latitude": "26.809",
+    "longitude": "75.8034",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "320",
+    "bus_stop_code": "SECT2",
+    "bus_stop_name": "SECTOR 2",
+    "latitude": "26.83592",
+    "longitude": "75.86934",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "321",
+    "bus_stop_code": "KEMOD",
+    "bus_stop_name": "KELGIRI MOD",
+    "latitude": "26.855864",
+    "longitude": "75.820429",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "322",
+    "bus_stop_code": "HMARG",
+    "bus_stop_name": "HARI MARG",
+    "latitude": "26.857692",
+    "longitude": "75.813781",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "323",
+    "bus_stop_code": "PMARG",
+    "bus_stop_name": "PRADHAN MARG",
+    "latitude": "26.859669",
+    "longitude": "75.809263",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "324",
+    "bus_stop_code": "SAIRY",
+    "bus_stop_name": "SARAS DAIRY",
+    "latitude": "26.862837",
+    "longitude": "75.806714",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "325",
+    "bus_stop_code": "MNIT",
+    "bus_stop_name": "MNIT",
+    "latitude": "26.866198",
+    "longitude": "75.807918",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "327",
+    "bus_stop_code": "POLOY",
+    "bus_stop_name": "POLOVICTORY",
+    "latitude": "26.92155",
+    "longitude": "75.797089",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "329",
+    "bus_stop_code": "PPACH",
+    "bus_stop_name": "PANI PACH",
+    "latitude": "26.93934",
+    "longitude": "75.78596",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "331",
+    "bus_stop_code": "PMITI",
+    "bus_stop_name": "PANCHAYAT SAMITI",
+    "latitude": "26.94304",
+    "longitude": "75.75111",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "332",
+    "bus_stop_code": "MEDIC",
+    "bus_stop_name": "MEDICIAL CENTRE",
+    "latitude": "26.94586",
+    "longitude": "75.73177",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "333",
+    "bus_stop_code": "BORIN",
+    "bus_stop_name": "BORING ROAD",
+    "latitude": "26.94548",
+    "longitude": "75.73188",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "334",
+    "bus_stop_code": "LALMA",
+    "bus_stop_name": "LAL MANDIR",
+    "latitude": "26.934256",
+    "longitude": "75.743306",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "336",
+    "bus_stop_code": "GN",
+    "bus_stop_name": "GANDHI NAGAR",
+    "latitude": "26.874643",
+    "longitude": "75.799413",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "337",
+    "bus_stop_code": "KC",
+    "bus_stop_name": "KANTA CIRCLE",
+    "latitude": "26.944396",
+    "longitude": "75.743758",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "339",
+    "bus_stop_code": "3A",
+    "bus_stop_name": "KUNDA",
+    "latitude": "26.9931",
+    "longitude": "75.87611",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "340",
+    "bus_stop_code": "A3",
+    "bus_stop_name": "KUKAS",
+    "latitude": "27.04095",
+    "longitude": "75.89486",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "341",
+    "bus_stop_code": "15JAI",
+    "bus_stop_name": "JAITPURA",
+    "latitude": "27.12366",
+    "longitude": "75.73213",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "342",
+    "bus_stop_code": "RAMPU",
+    "bus_stop_name": "RAMPURA",
+    "latitude": "27.09921",
+    "longitude": "75.7373",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "343",
+    "bus_stop_code": "MOTUK",
+    "bus_stop_name": "MOTA KA BAS",
+    "latitude": "27.07646",
+    "longitude": "75.74747",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "344",
+    "bus_stop_code": "RAJAW",
+    "bus_stop_name": "RAJAWAS",
+    "latitude": "27.06192",
+    "longitude": "75.75157",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "345",
+    "bus_stop_code": "CHOMU",
+    "bus_stop_name": "CHOMU",
+    "latitude": "27.16806",
+    "longitude": "75.72384",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "346",
+    "bus_stop_code": "JHOTW",
+    "bus_stop_name": "JHOTWARA CIRCLE",
+    "latitude": "26.94155",
+    "longitude": "75.76782",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "347",
+    "bus_stop_code": "SHEKH",
+    "bus_stop_name": "SHEKHAWAT MARG",
+    "latitude": "26.94705",
+    "longitude": "75.72504",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "348",
+    "bus_stop_code": "KARDH",
+    "bus_stop_name": "KARDHANI 9 DUKAN",
+    "latitude": "26.94785",
+    "longitude": "75.72057",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "349",
+    "bus_stop_code": "GOVIN",
+    "bus_stop_name": "GOVINDAM TOWER",
+    "latitude": "26.95016",
+    "longitude": "75.70874",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "350",
+    "bus_stop_code": "MANG",
+    "bus_stop_name": "MANGLAM CITY",
+    "latitude": "26.95462",
+    "longitude": "75.69469",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "351",
+    "bus_stop_code": "HATOJ",
+    "bus_stop_name": "HATOJ",
+    "latitude": "26.95603",
+    "longitude": "75.68334",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "352",
+    "bus_stop_code": "ROYAL",
+    "bus_stop_name": "ROYAL CITY",
+    "latitude": "26.96618",
+    "longitude": "75.65764",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "353",
+    "bus_stop_code": "MACHW",
+    "bus_stop_name": "MACHWA",
+    "latitude": "26.96306",
+    "longitude": "75.66351",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "354",
+    "bus_stop_code": "RAMKU",
+    "bus_stop_name": "RAMKUTIYA",
+    "latitude": "26.97004",
+    "longitude": "75.64744",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "355",
+    "bus_stop_code": "CHAMP",
+    "bus_stop_name": "CHAMPURA",
+    "latitude": "26.97304",
+    "longitude": "75.63401",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "356",
+    "bus_stop_code": "BHAMB",
+    "bus_stop_name": "BHAMBORI",
+    "latitude": "26.97585",
+    "longitude": "75.62014",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "357",
+    "bus_stop_code": "KALWA",
+    "bus_stop_name": "KALWAD MOD",
+    "latitude": "26.98641",
+    "longitude": "75.58638",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "358",
+    "bus_stop_code": "KAL",
+    "bus_stop_name": "KALWAR",
+    "latitude": "26.99061",
+    "longitude": "75.58367",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "359",
+    "bus_stop_code": "ANAND",
+    "bus_stop_name": "ANANDAM MANGLAM",
+    "latitude": "26.81476",
+    "longitude": "75.76381",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "360",
+    "bus_stop_code": "JAISI",
+    "bus_stop_name": "JAISINGHPHURA MOD",
+    "latitude": "26.951484",
+    "longitude": "75.862626",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "361",
+    "bus_stop_code": "TODI",
+    "bus_stop_name": "TODI",
+    "latitude": "27.029",
+    "longitude": "75.76884",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "365",
+    "bus_stop_code": "RAMF",
+    "bus_stop_name": "RAMPURA FATAK",
+    "latitude": "26.8169",
+    "longitude": "75.77235",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "366",
+    "bus_stop_code": "HARJI",
+    "bus_stop_name": "HARJI VIHAR",
+    "latitude": "26.95114",
+    "longitude": "75.89356",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "367",
+    "bus_stop_code": "JDAC",
+    "bus_stop_name": "J.D.A.COLONY",
+    "latitude": "26.94804",
+    "longitude": "75.89336",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "372",
+    "bus_stop_code": "BOOKI",
+    "bus_stop_name": "BOOKING",
+    "latitude": "26.80984",
+    "longitude": "75.8056",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "374",
+    "bus_stop_code": "PATRA",
+    "bus_stop_name": "PATRAKAR COLONY",
+    "latitude": "26.842855",
+    "longitude": "75.747508",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "375",
+    "bus_stop_code": "BABAP",
+    "bus_stop_name": "BABA PARADISE",
+    "latitude": "26.847516",
+    "longitude": "75.751801",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "377",
+    "bus_stop_code": "SWARA",
+    "bus_stop_name": "SWARAN PATH",
+    "latitude": "26.871647",
+    "longitude": "75.755125",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "397",
+    "bus_stop_code": "VKI17",
+    "bus_stop_name": "VKI NO. 17",
+    "latitude": "26.9995",
+    "longitude": "75.79487",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "398",
+    "bus_stop_code": "RD9CN",
+    "bus_stop_name": "RD 9 CANTEEN",
+    "latitude": "26.98634",
+    "longitude": "75.78361",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "401",
+    "bus_stop_code": "KUNDA",
+    "bus_stop_name": "KUNDAN PURA",
+    "latitude": "26.83598",
+    "longitude": "75.86772",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "402",
+    "bus_stop_code": "NIWAR",
+    "bus_stop_name": "NIWARU",
+    "latitude": "26.97172",
+    "longitude": "75.71391",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "403",
+    "bus_stop_code": "NATH",
+    "bus_stop_name": "NATH JI KI ",
+    "latitude": "26.96346",
+    "longitude": "75.7283",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "404",
+    "bus_stop_code": "BY PA",
+    "bus_stop_name": "BY PASS",
+    "latitude": "26.95922",
+    "longitude": "75.73574",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "405",
+    "bus_stop_code": "NETA",
+    "bus_stop_name": "NETA KI CHAKI",
+    "latitude": "26.957444",
+    "longitude": "75.739389",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "406",
+    "bus_stop_code": "LAXMI",
+    "bus_stop_name": "LAXMI NAGAR",
+    "latitude": "26.956434",
+    "longitude": "75.740951",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "407",
+    "bus_stop_code": "HEERB",
+    "bus_stop_name": "HEERA BADI",
+    "latitude": "26.9546",
+    "longitude": "75.74552",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "411",
+    "bus_stop_code": "HASAN",
+    "bus_stop_name": "HASANPURA",
+    "latitude": "26.91698",
+    "longitude": "75.78307",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "421",
+    "bus_stop_code": "GALTG",
+    "bus_stop_name": "GALTA GATE",
+    "latitude": "26.9184",
+    "longitude": "75.84855",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "422",
+    "bus_stop_code": "NEELK",
+    "bus_stop_name": "NEELKANTH PARADISE",
+    "latitude": "26.889715",
+    "longitude": "75.877607",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "423",
+    "bus_stop_code": "SHARM",
+    "bus_stop_name": "SHARMA BHOJNALAYA",
+    "latitude": "26.892782",
+    "longitude": "75.867871",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "424",
+    "bus_stop_code": "DAULA",
+    "bus_stop_name": "DAULATPURA",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "425",
+    "bus_stop_code": "KHARV",
+    "bus_stop_name": "KHARVADI",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "426",
+    "bus_stop_code": "SEVAP",
+    "bus_stop_name": "SEVAPURA",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "427",
+    "bus_stop_code": "CBIPH",
+    "bus_stop_name": "CBI PHATAK",
+    "latitude": "26.83536",
+    "longitude": "75.85032",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "428",
+    "bus_stop_code": "RAMGA",
+    "bus_stop_name": "RAMGARH",
+    "latitude": "27.01865",
+    "longitude": "76.01422",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "429",
+    "bus_stop_code": "SADWA",
+    "bus_stop_name": "SADWA",
+    "latitude": "26.96109",
+    "longitude": "75.86796",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "431",
+    "bus_stop_code": "NAIKT",
+    "bus_stop_name": "NAI KI TADI",
+    "latitude": "26.96832",
+    "longitude": "75.89238",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "432",
+    "bus_stop_code": "CHAMU",
+    "bus_stop_name": "CHAMUNDA MATA",
+    "latitude": "26.96915",
+    "longitude": "75.90587",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "433",
+    "bus_stop_code": "HATWA",
+    "bus_stop_name": "HATWARA",
+    "latitude": "26.97193",
+    "longitude": "75.91465",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "434",
+    "bus_stop_code": "SAIPR",
+    "bus_stop_name": "SAIPURA",
+    "latitude": "26.97889",
+    "longitude": "75.92453",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "435",
+    "bus_stop_code": "CHAIN",
+    "bus_stop_name": "CHAINPURA",
+    "latitude": "26.98887",
+    "longitude": "75.9525",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "436",
+    "bus_stop_code": "LALI",
+    "bus_stop_name": "LAALI",
+    "latitude": "27.00224",
+    "longitude": "75.97882",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "437",
+    "bus_stop_code": "NAYAB",
+    "bus_stop_name": "NAYABAS",
+    "latitude": "27.00583",
+    "longitude": "75.98173",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "449",
+    "bus_stop_code": "NRI",
+    "bus_stop_name": "NRI",
+    "latitude": "26.798287",
+    "longitude": "75.834936",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "450",
+    "bus_stop_code": "LALW",
+    "bus_stop_name": "LALWAS",
+    "latitude": "26.96855",
+    "longitude": "75.90445",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "451",
+    "bus_stop_code": "GDMOD",
+    "bus_stop_name": "G D MODE",
+    "latitude": "27.018745",
+    "longitude": "75.999207",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "452",
+    "bus_stop_code": "JAWAC",
+    "bus_stop_name": "JAWAHAR CIRCLE",
+    "latitude": "26.843046",
+    "longitude": "75.801683",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "453",
+    "bus_stop_code": "KVNO4",
+    "bus_stop_name": "KV NO.4",
+    "latitude": "26.917645",
+    "longitude": "75.766853",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "454",
+    "bus_stop_code": "JHARK",
+    "bus_stop_name": "JHARKHAND MODE",
+    "latitude": "26.920874",
+    "longitude": "75.754797",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "455",
+    "bus_stop_code": "ALANC",
+    "bus_stop_name": "ALANKAR COLLAGE",
+    "latitude": "26.92313",
+    "longitude": "75.718837",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "456",
+    "bus_stop_code": "MEENA",
+    "bus_stop_name": "MEENAWALA",
+    "latitude": "26.923788",
+    "longitude": "75.715552",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "457",
+    "bus_stop_code": "SHEKC",
+    "bus_stop_name": "SHEKHWAT COLONY",
+    "latitude": "26.924248",
+    "longitude": "75.706114",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "458",
+    "bus_stop_code": "KANPR",
+    "bus_stop_name": "KANAKPURA",
+    "latitude": "26.923948",
+    "longitude": "75.715372",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "459",
+    "bus_stop_code": "SIRSI",
+    "bus_stop_name": "SIRSI MODE",
+    "latitude": "26.922914",
+    "longitude": "75.687954",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "460",
+    "bus_stop_code": "HATJM",
+    "bus_stop_name": "HATHOJ MODE",
+    "latitude": "26.920877",
+    "longitude": "75.675698",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "461",
+    "bus_stop_code": "BINDY",
+    "bus_stop_name": "BINDYAKA",
+    "latitude": "26.921111",
+    "longitude": "75.66037",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "462",
+    "bus_stop_code": "SHIWA",
+    "bus_stop_name": "SHIWAR",
+    "latitude": "26.918662",
+    "longitude": "75.647023",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "463",
+    "bus_stop_code": "PANYL",
+    "bus_stop_name": "PANCHYAWALA",
+    "latitude": "26.916062",
+    "longitude": "75.71741",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "464",
+    "bus_stop_code": "FSN",
+    "bus_stop_name": "FIRE STATION",
+    "latitude": "26.914872",
+    "longitude": "75.640675",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "465",
+    "bus_stop_code": "NMD",
+    "bus_stop_name": "NIMEDA",
+    "latitude": "26.899936",
+    "longitude": "75.630798",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "466",
+    "bus_stop_code": "MSR",
+    "bus_stop_name": "MUNDIYARAMSAR",
+    "latitude": "26.902179",
+    "longitude": "75.617176",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "469",
+    "bus_stop_code": "DANTL",
+    "bus_stop_name": "DANTLI PHATAK",
+    "latitude": "26.8204",
+    "longitude": "75.901444",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "470",
+    "bus_stop_code": "SEC4",
+    "bus_stop_name": "SECTOR.4",
+    "latitude": "26.836239",
+    "longitude": "75.876778",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "471",
+    "bus_stop_code": "KV3",
+    "bus_stop_name": "KV3",
+    "latitude": "26.865841",
+    "longitude": "75.822798",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "481",
+    "bus_stop_code": "DEVLI",
+    "bus_stop_name": "DEVLIYA",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "483",
+    "bus_stop_code": "LXMBT",
+    "bus_stop_name": "LAXMI BATTA",
+    "latitude": "26.879302",
+    "longitude": "75.921553",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "484",
+    "bus_stop_code": "TLKHS",
+    "bus_stop_name": "TILAK HOSPITAL",
+    "latitude": "26.883449",
+    "longitude": "75.901719",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "485",
+    "bus_stop_code": "AIR",
+    "bus_stop_name": "AIRPORT",
+    "latitude": "26.830189",
+    "longitude": "75.805596",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "486",
+    "bus_stop_code": "RAM",
+    "bus_stop_name": "RAM NAGAR",
+    "latitude": "26.940721",
+    "longitude": "75.743195",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "487",
+    "bus_stop_code": "AMBER",
+    "bus_stop_name": "AMER",
+    "latitude": "26.990555",
+    "longitude": "75.874857",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "488",
+    "bus_stop_code": "GONMD",
+    "bus_stop_name": "GONER MODE",
+    "latitude": "26.76601",
+    "longitude": "75.838443",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "489",
+    "bus_stop_code": "VIDHA",
+    "bus_stop_name": "VIDHANI",
+    "latitude": "26.776144",
+    "longitude": "75.865451",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "490",
+    "bus_stop_code": "POORN",
+    "bus_stop_name": "POORNIMA UNIVERSITY",
+    "latitude": "26.775743",
+    "longitude": "75.888519",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "491",
+    "bus_stop_code": "GAYTR",
+    "bus_stop_name": "GAYATRI MANDIR",
+    "latitude": "26.775827",
+    "longitude": "75.888543",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "503",
+    "bus_stop_code": "BAPMR",
+    "bus_stop_name": "BADA PADAMPURA",
+    "latitude": "26.720954",
+    "longitude": "75.923013",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "504",
+    "bus_stop_code": "GOLYS",
+    "bus_stop_name": "GOLYAWAS",
+    "latitude": "26.715268",
+    "longitude": "75.911607",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "505",
+    "bus_stop_code": "CHDLA",
+    "bus_stop_name": "CHANDLAI",
+    "latitude": "26.685908",
+    "longitude": "75.878024",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "506",
+    "bus_stop_code": "BHOJA",
+    "bus_stop_name": "BHOJAN",
+    "latitude": "26.677811",
+    "longitude": "75.860344",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "507",
+    "bus_stop_code": "BANSA",
+    "bus_stop_name": "BANSA",
+    "latitude": "26.671835",
+    "longitude": "75.849262",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "508",
+    "bus_stop_code": "TITR",
+    "bus_stop_name": "TITRIYA",
+    "latitude": "26.659800",
+    "longitude": "75.830972",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "518",
+    "bus_stop_code": "MAL3",
+    "bus_stop_name": "SEC-3 MALVIYA NGR",
+    "latitude": "26.846861",
+    "longitude": "75.817117",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "519",
+    "bus_stop_code": "MAL10",
+    "bus_stop_name": "SEC-10 MALVIYA NGR",
+    "latitude": "26.850927",
+    "longitude": "75.810474",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "520",
+    "bus_stop_code": "MAL11",
+    "bus_stop_name": "SEC-11 MALVIYA NGR",
+    "latitude": "26.845534",
+    "longitude": "75.812931",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "521",
+    "bus_stop_code": "KRS",
+    "bus_stop_name": "KHATIPURA RAILWAY STATION",
+    "latitude": "26.836833",
+    "longitude": "75.892408",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "523",
+    "bus_stop_code": "EID",
+    "bus_stop_name": "EIDGAH",
+    "latitude": "26.930799",
+    "longitude": "75.845052",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "524",
+    "bus_stop_code": "KHM",
+    "bus_stop_name": "KHOLE KE HANUMAN JI",
+    "latitude": "26.938790",
+    "longitude": "75.846766",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "525",
+    "bus_stop_code": "ANOKH",
+    "bus_stop_name": "ANOKHA GAAV",
+    "latitude": "27.005821",
+    "longitude": "75.770715",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "531",
+    "bus_stop_code": "MMODE",
+    "bus_stop_name": "MOJIYA MODE",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "532",
+    "bus_stop_code": "NGAON",
+    "bus_stop_name": "NANDGAON",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "533",
+    "bus_stop_code": "DV",
+    "bus_stop_name": "DHANKYA VILLAGE",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "542",
+    "bus_stop_code": "RBTH",
+    "bus_stop_name": "RSBTDA BUS TERMINAL HEERAPURA",
+    "latitude": "26.87642",
+    "longitude": "75.71175",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "565",
+    "bus_stop_code": "CHORD",
+    "bus_stop_name": "CHORDIA PETROL PAMP",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "566",
+    "bus_stop_code": "SANRI",
+    "bus_stop_name": "SANGANER RIICO",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "567",
+    "bus_stop_code": "AFMOD",
+    "bus_stop_name": "AGARWAL FARM MOD",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "568",
+    "bus_stop_code": "VPTM",
+    "bus_stop_name": "VIJAY PATH MOD",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "569",
+    "bus_stop_code": "RATPM",
+    "bus_stop_name": "RAJAT PATH MOD",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "570",
+    "bus_stop_code": "SWPM",
+    "bus_stop_name": "SWARN PATH MOD",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "581",
+    "bus_stop_code": "JAIST",
+    "bus_stop_name": "JAISINGHPURA THANA",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "582",
+    "bus_stop_code": "KPRO",
+    "bus_stop_name": "KHIRNI PHATAK OVERBRIDGE",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Bus Stand"
+  },
+  {
+    "bus_stop_id": "583",
+    "bus_stop_code": "GB27",
+    "bus_stop_name": "GOVINDPURA",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "588",
+    "bus_stop_code": "LNDP",
+    "bus_stop_name": "LALCHANDPURA",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "589",
+    "bus_stop_code": "GTM",
+    "bus_stop_name": "GLABA BABA TEMPLE MODE",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "590",
+    "bus_stop_code": "BWN",
+    "bus_stop_name": "BHAGWATI NAGAR",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "591",
+    "bus_stop_code": "MS",
+    "bus_stop_name": "MILITRY STATION",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "592",
+    "bus_stop_code": "GLR",
+    "bus_stop_name": "GOVINDPURA LINK ROAD",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "598",
+    "bus_stop_code": "AMH",
+    "bus_stop_name": "AMBE HOSPITAL",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "602",
+    "bus_stop_code": "200",
+    "bus_stop_name": "200FEET",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Depot"
+  },
+  {
+    "bus_stop_id": "603",
+    "bus_stop_code": "DALC",
+    "bus_stop_name": "DAULATPURA CHAURAHA",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "604",
+    "bus_stop_code": "RAMD1",
+    "bus_stop_name": "RAMPURA 1",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Bus stop"
+  },
+  {
+    "bus_stop_id": "609",
+    "bus_stop_code": "52",
+    "bus_stop_name": "52 FEET HANUMAN JI",
+    "latitude": "",
+    "longitude": "",
+    "bus_stop_type": "Bus stop"
+  }
+]

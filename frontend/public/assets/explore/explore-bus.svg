@@ -1,0 +1,77 @@
+<svg width="300" height="170" viewBox="0 0 300 170" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#bae6fd" />
+      <stop offset="60%" stop-color="#e0f2fe" />
+      <stop offset="100%" stop-color="#fdf2f4" />
+    </linearGradient>
+    <linearGradient id="roadGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#64748b" />
+      <stop offset="100%" stop-color="#334155" />
+    </linearGradient>
+    <linearGradient id="busBody" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#f1f5f9" />
+    </linearGradient>
+  </defs>
+
+  <!-- Sky -->
+  <rect width="300" height="170" fill="url(#skyGrad)" />
+
+  <!-- Distant Jaipur monuments silhouette -->
+  <path d="M0 115 Q30 95 60 115 T120 115 T180 115 T240 115 T300 115 V130 H0 Z" fill="#fbcfe8" opacity="0.6" />
+  <!-- Hawa Mahal Arches outline in background -->
+  <path d="M190 115 v-18 a6 6 0 0 1 12 0 v18 m16 0 v-24 a8 8 0 0 1 16 0 v24 m20 0 v-16 a6 6 0 0 1 12 0 v16" stroke="#f472b6" stroke-width="1.5" fill="none" opacity="0.4" />
+
+  <!-- Road -->
+  <rect y="125" width="300" height="45" fill="url(#roadGrad)" />
+  <line x1="0" y1="148" x2="300" y2="148" stroke="#f8fafc" stroke-width="2" stroke-dasharray="16 12" />
+
+  <!-- Modern JCTSL Pink City Bus -->
+  <!-- Shadow -->
+  <ellipse cx="150" cy="138" rx="100" ry="8" fill="#0f172a" opacity="0.25" />
+
+  <!-- Main Body -->
+  <rect x="52" y="62" width="196" height="66" rx="12" fill="url(#busBody)" stroke="#cbd5e1" stroke-width="1.5" />
+  
+  <!-- Jaipur Pink Front Nose & Skirt -->
+  <path d="M216 62 h22 a10 10 0 0 1 10 10 v44 a10 10 0 0 1 -10 10 h-22 Z" fill="#e11d48" />
+  <path d="M52 104 h196 v24 a10 10 0 0 1 -10 10 H62 a10 10 0 0 1 -10 -10 v-24 Z" fill="#e11d48" />
+
+  <!-- JCTSL Logo Text on Body -->
+  <text x="140" y="120" fill="#ffffff" font-size="11" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-weight="900" letter-spacing="1">JCTSL</text>
+
+  <!-- Front Windshield -->
+  <path d="M216 68 h18 a8 8 0 0 1 8 8 v24 h-26 Z" fill="#0f172a" />
+  <path d="M218 70 h14 a6 6 0 0 1 6 6 v20 h-20 Z" fill="#38bdf8" opacity="0.85" />
+  <line x1="222" y1="72" x2="234" y2="84" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" opacity="0.7" />
+
+  <!-- LED Destination Sign -->
+  <rect x="180" y="66" width="32" height="6" rx="1.5" fill="#0f172a" />
+  <text x="196" y="71" fill="#38bdf8" font-size="4.5" font-family="sans-serif" font-weight="bold" text-anchor="middle">JAIPUR</text>
+
+  <!-- Windows -->
+  <rect x="62" y="70" width="24" height="24" rx="3" fill="#0f172a" opacity="0.85" />
+  <rect x="90" y="70" width="24" height="24" rx="3" fill="#0f172a" opacity="0.85" />
+  <rect x="118" y="70" width="24" height="24" rx="3" fill="#0f172a" opacity="0.85" />
+  <rect x="146" y="70" width="24" height="24" rx="3" fill="#0f172a" opacity="0.85" />
+  <rect x="174" y="70" width="24" height="24" rx="3" fill="#0f172a" opacity="0.85" />
+
+  <!-- Headlights -->
+  <circle cx="244" cy="112" r="3.5" fill="#fef08a" />
+  <circle cx="244" cy="112" r="6" fill="#fef08a" opacity="0.3" />
+
+  <!-- Wheels -->
+  <!-- Rear Wheel -->
+  <circle cx="92" cy="132" r="14" fill="#1e293b" />
+  <circle cx="92" cy="132" r="7.5" fill="#94a3b8" />
+  <circle cx="92" cy="132" r="3" fill="#ffffff" />
+  <path d="M76 132 a16 16 0 0 1 32 0" stroke="#0f172a" stroke-width="2.5" fill="none" />
+
+  <!-- Front Wheel -->
+  <circle cx="204" cy="132" r="14" fill="#1e293b" />
+  <circle cx="204" cy="132" r="7.5" fill="#94a3b8" />
+  <circle cx="204" cy="132" r="3" fill="#ffffff" />
+  <path d="M188 132 a16 16 0 0 1 32 0" stroke="#0f172a" stroke-width="2.5" fill="none" />
+</svg>
+

@@ -1,4 +1,9 @@
 {
-  "regions": ["bom1"]
+  "regions": ["bom1"],
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index.js"
+    }
+  ]
 }
-

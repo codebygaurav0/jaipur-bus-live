@@ -1,6 +1,15 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const http = require("node:http");
+const os = require("node:os");
+const path = require("node:path");
+
+process.env.JCTSL_AUTH_TOKEN = "";
+process.env.JCTSL_USER_ID = "";
+process.env.JCTSL_SESSION_FILE = path.join(
+  os.tmpdir(),
+  `jbl-server-reliability-${process.pid}.json`
+);
 
 const {
   app,
@@ -74,22 +83,62 @@ test("/api/health never exposes PII, tokens, or credentials", async () => {
   }
 });
 
-test("/api/live-buses handles empty cache with 503 upstream-unavailable and serves real cache when present", async () => {
+test("/api/auth/session explains when no server-side JCTSL session is available", async () => {
   const server = http.createServer(app);
   await new Promise((resolve) => server.listen(0, resolve));
   const port = server.address().port;
 
   try {
-    // 1. When cache is empty, request without auth returns 401
-    const resNoAuth = await fetch(`http://127.0.0.1:${port}/api/live-buses`);
-    // If backend has no session or has active session, verify response contract
-    assert.ok(resNoAuth.status === 401 || resNoAuth.status === 200 || resNoAuth.status === 503);
+    const res = await fetch(`http://127.0.0.1:${port}/api/auth/session`);
+    assert.equal(res.status, 200);
+    const data = await res.json();
 
-    // 2. Telemetry engine contract: verify getSummary and getLiveVehicles never invent data
+    assert.equal(data.authenticated, false);
+    assert.equal(data.user, null);
+    assert.equal(data.error.code, "AUTH_REQUIRED");
+    assert.match(data.error.message, /server-side JCTSL session/i);
+    assert.equal(JSON.stringify(data).toLowerCase().includes("authtoken"), false);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("/api/live-buses distinguishes unavailable telemetry from cached real telemetry", async () => {
+  telemetryEngine.processTelemetry([]);
+  const server = http.createServer(app);
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  try {
+    // A missing session and empty cache must not resemble a genuine zero-bus response.
+    const resNoAuth = await fetch(`http://127.0.0.1:${port}/api/live-buses`);
+    assert.equal(resNoAuth.status, 503);
+    const unavailable = await resNoAuth.json();
+    assert.equal(unavailable.success, false);
+    assert.equal(unavailable.respCode, "0");
+    assert.equal(unavailable.isCached, false);
+    assert.equal(unavailable.error.code, "AUTH_REQUIRED");
+    assert.match(unavailable.respMessage, /no active server-side JCTSL session/i);
+
+    telemetryEngine.processTelemetry([{
+      vehno: "RJ14TEST001",
+      rno: "1",
+      curlat: "26.9",
+      curlong: "75.8",
+    }]);
+    const resCached = await fetch(`http://127.0.0.1:${port}/api/live-buses`);
+    assert.equal(resCached.status, 200);
+    const cached = await resCached.json();
+    assert.equal(cached.success, true);
+    assert.equal(cached.isCached, true);
+    assert.equal(cached.upstreamReachable, false);
+    assert.equal(cached.respData.length, 1);
+
     const summary = telemetryEngine.getSummary();
     const vehicles = telemetryEngine.getLiveVehicles();
     assert.ok(Array.isArray(vehicles));
     assert.ok(typeof summary === "object");
+    telemetryEngine.processTelemetry([]);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

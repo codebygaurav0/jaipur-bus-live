@@ -1,0 +1,70 @@
+{
+  "specVersion": "1.0",
+  "host": {
+    "displayName": "Jaipur Bus Live",
+    "identifier": "did:web:jaipur-bus-live.web.app",
+    "documentationUrl": "https://jaipur-bus-live.web.app/llms.txt"
+  },
+  "entries": [
+    {
+      "identifier": "urn:air:jaipur-bus-live.web.app:api:live-buses",
+      "displayName": "JCTSL Live Bus Telemetry API",
+      "type": "application/json",
+      "url": "https://jaipur-bus-live-5nvg.vercel.app/api/live-buses",
+      "description": "Real-time GPS coordinates, vehicle bearing, speed, and status for active JCTSL city buses.",
+      "representativeQueries": [
+        "Where is bus 6A right now in Jaipur?",
+        "Show real-time GPS locations of active JCTSL city buses",
+        "Which buses are currently moving near Mansarovar?"
+      ]
+    },
+    {
+      "identifier": "urn:air:jaipur-bus-live.web.app:api:routes",
+      "displayName": "Jaipur Bus Routes Directory",
+      "type": "application/json",
+      "url": "https://jaipur-bus-live-5nvg.vercel.app/api/routes",
+      "description": "Directory of 54 active transit routes with ordered stop sequences and terminals.",
+      "representativeQueries": [
+        "What route does bus AC-7 take in Jaipur?",
+        "Find bus routes between Mansarovar and Badi Chaupar",
+        "List all 54 active JCTSL city bus routes"
+      ]
+    },
+    {
+      "identifier": "urn:air:jaipur-bus-live.web.app:api:bus-stops",
+      "displayName": "Jaipur Bus Stops Catalog",
+      "type": "application/json",
+      "url": "https://jaipur-bus-live-5nvg.vercel.app/api/bus-stops",
+      "description": "Complete geo-referenced catalog of 360+ verified bus stops across Jaipur.",
+      "representativeQueries": [
+        "Find the nearest bus stop to Jaipur Airport",
+        "Show all 360+ geo-referenced bus stops in Jaipur",
+        "Lookup bus stop code for Kelgiri Marg"
+      ]
+    },
+    {
+      "identifier": "urn:air:jaipur-bus-live.web.app:metro:pink-line",
+      "displayName": "Jaipur Metro (JMRC Pink Line) Guide",
+      "type": "text/html",
+      "url": "https://jaipur-bus-live.web.app/metro",
+      "description": "Pink Line corridor stations, fare stages, timetable, and interchange details.",
+      "representativeQueries": [
+        "What is the metro fare from Mansarovar to Badi Chaupar?",
+        "What are the operational timings of Jaipur Metro?",
+        "Which stations connect to the Pink Line in Jaipur?"
+      ]
+    },
+    {
+      "identifier": "urn:air:jaipur-bus-live.web.app:emergency:helplines",
+      "displayName": "Jaipur 24x7 Emergency Helplines & SOS",
+      "type": "application/json",
+      "url": "https://jaipur-bus-live.web.app/assets/emergency/contacts.json",
+      "description": "Verified emergency directory covering Police, Ambulance, Fire, Women & Child helplines.",
+      "representativeQueries": [
+        "Jaipur police emergency control room phone number",
+        "Call women helpline 1090 Jaipur",
+        "Emergency ambulance number Jaipur"
+      ]
+    }
+  ]
+}

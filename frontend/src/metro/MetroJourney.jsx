@@ -1,4 +1,74 @@
-import React, { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { apiUrl } from "../apiBase";
+
+// Client-side fallback calculator using verified JMRC station data & official fare slabs
+function computeClientJourney(fromCode, toCode, stationsList) {
+  if (!Array.isArray(stationsList) || stationsList.length < 2) return null;
+  const fromSt = stationsList.find(
+    (s) => s.station_id === fromCode || s.code === fromCode || s.name?.toLowerCase() === fromCode?.toLowerCase()
+  );
+  const toSt = stationsList.find(
+    (s) => s.station_id === toCode || s.code === toCode || s.name?.toLowerCase() === toCode?.toLowerCase()
+  );
+  if (!fromSt || !toSt || fromSt.station_id === toSt.station_id) return null;
+
+  const isEastbound = fromSt.order < toSt.order;
+  const direction = isEastbound
+    ? "Towards Badi Chaupar (Eastbound)"
+    : "Towards Mansarovar (Westbound)";
+  const terminus = isEastbound ? "Badi Chaupar" : "Mansarovar";
+
+  const minOrder = Math.min(fromSt.order, toSt.order);
+  const maxOrder = Math.max(fromSt.order, toSt.order);
+  const rawSub = stationsList.filter((s) => s.order >= minOrder && s.order <= maxOrder);
+  const sortedStops = isEastbound ? rawSub : [...rawSub].reverse();
+
+  const totalStops = sortedStops.length;
+  const stationHops = Math.max(0, totalStops - 1);
+  const distanceKm = Number(
+    Math.abs((toSt.distance_km || 0) - (fromSt.distance_km || 0)).toFixed(2)
+  );
+  const estimatedTimeMins = Math.max(3, Math.round(stationHops * 3.2));
+
+  // Official JMRC fare slabs: 1-2 stops: ₹6, 3-5: ₹12, 6-8: ₹18, 9+: ₹22
+  let tokenFare = 6;
+  if (totalStops > 8) {
+    tokenFare = 22;
+  } else if (totalStops > 5) {
+    tokenFare = 18;
+  } else if (totalStops > 2) {
+    tokenFare = 12;
+  }
+  const smartCardFare = Number((tokenFare * 0.9).toFixed(1));
+
+  return {
+    success: true,
+    line: "Pink Line (Phase 1A & 1B)",
+    direction,
+    terminus,
+    from_station: fromSt,
+    to_station: toSt,
+    total_stops: totalStops,
+    station_hops: stationHops,
+    distance_km: distanceKm,
+    estimated_travel_time_mins: estimatedTimeMins,
+    fare: {
+      token_fare: tokenFare,
+      smart_card_fare: smartCardFare,
+      currency: "INR",
+      note: "10% discount on JMRC Smart Card / Metro Pass",
+    },
+    operating_hours: {
+      first_train: "06:20 AM",
+      last_train: "09:50 PM",
+      frequency_mins: "10-12",
+    },
+    stations: sortedStops,
+    live_telemetry_available: false,
+    live_telemetry_notice:
+      "JMRC train positions are governed by internal signaling systems; travel durations are computed from official timetable headways.",
+  };
+}
 
 export default function MetroJourney({
   stations = [],
@@ -9,123 +79,251 @@ export default function MetroJourney({
   onJourneyCalculated,
 }) {
   const [loading, setLoading] = useState(false);
-  const [journeyResult, setJourneyResult] = useState(null);
+  const [journeyResult, setJourneyResult] = useState(() =>
+    computeClientJourney(
+      fromStation?.code || "MSOR",
+      toStation?.code || "BDCP",
+      stations
+    )
+  );
   const [errorMsg, setErrorMsg] = useState("");
   const [showFromDropdown, setShowFromDropdown] = useState(false);
   const [showToDropdown, setShowToDropdown] = useState(false);
+  const fromDropdownRef = useRef(null);
+  const toDropdownRef = useRef(null);
 
-  const handleSwap = () => {
-    const tmp = fromStation;
-    setFromStation(toStation);
-    setToStation(tmp);
-    if (toStation && tmp) {
-      calculateJourney(toStation.code, tmp.code);
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (fromDropdownRef.current && !fromDropdownRef.current.contains(event.target)) {
+        setShowFromDropdown(false);
+      }
+      if (toDropdownRef.current && !toDropdownRef.current.contains(event.target)) {
+        setShowToDropdown(false);
+      }
     }
-  };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-  const calculateJourney = async (fromCode, toCode) => {
-    if (!fromCode || !toCode) return;
-    if (fromCode === toCode) {
-      setErrorMsg("Origin and destination stations cannot be the same.");
-      setJourneyResult(null);
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setErrorMsg("");
-      const res = await fetch(
-        `https://jaipur-bus-live-5nvg.vercel.app/api/metro/journey?from=${encodeURIComponent(
-          fromCode
-        )}&to=${encodeURIComponent(toCode)}`
-      );
-      const data = await res.json();
-
-      if (!data.success) {
-        setErrorMsg(data.message || "Failed to calculate metro journey.");
+  const calculateJourney = useCallback(
+    async (fromCode, toCode) => {
+      if (!fromCode || !toCode) return;
+      if (fromCode === toCode) {
+        setErrorMsg("Boarding and destination stations cannot be the same.");
         setJourneyResult(null);
         if (onJourneyCalculated) onJourneyCalculated([]);
         return;
       }
 
-      setJourneyResult(data);
-      if (onJourneyCalculated) onJourneyCalculated(data.stations || []);
-    } catch (err) {
-      console.warn("Metro journey error:", err);
-      setErrorMsg("Unable to connect to Metro journey service.");
-    } finally {
-      setLoading(false);
+      setErrorMsg("");
+      setLoading(true);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8-second safety timeout
+
+      try {
+        const res = await fetch(
+          apiUrl(`/api/metro/journey?from=${encodeURIComponent(
+            fromCode
+          )}&to=${encodeURIComponent(toCode)}`),
+          { signal: controller.signal }
+        );
+        clearTimeout(timeoutId);
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+        if (!data.success) {
+          throw new Error(data.message || "Failed to calculate metro journey.");
+        }
+
+        setJourneyResult(data);
+        if (onJourneyCalculated) onJourneyCalculated(data.stations || []);
+      } catch (err) {
+        clearTimeout(timeoutId);
+        console.warn("Metro journey API fetch error; computing client fallback:", err);
+
+        const fallback = computeClientJourney(fromCode, toCode, stations);
+        if (fallback) {
+          setJourneyResult(fallback);
+          if (onJourneyCalculated) onJourneyCalculated(fallback.stations || []);
+        } else {
+          setErrorMsg("Unable to calculate route. Please try selecting different stations.");
+          setJourneyResult(null);
+          if (onJourneyCalculated) onJourneyCalculated([]);
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [onJourneyCalculated, stations]
+  );
+
+  // Auto-calculate journey when stations are ready
+  useEffect(() => {
+    if (
+      !fromStation?.code ||
+      !toStation?.code ||
+      fromStation.code === toStation.code
+    ) {
+      return;
     }
+
+    let ignore = false;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    fetch(
+      apiUrl(`/api/metro/journey?from=${encodeURIComponent(
+        fromStation.code
+      )}&to=${encodeURIComponent(toStation.code)}`),
+      { signal: controller.signal }
+    )
+      .then((res) => {
+        clearTimeout(timeoutId);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        if (ignore) return;
+        if (!data.success) {
+          throw new Error(data.message || "Failed to calculate metro journey.");
+        }
+        setJourneyResult(data);
+        setErrorMsg("");
+        setLoading(false);
+        if (onJourneyCalculated) onJourneyCalculated(data.stations || []);
+      })
+      .catch((err) => {
+        clearTimeout(timeoutId);
+        if (ignore) return;
+        console.warn("Metro journey API fetch error; computing client fallback:", err);
+
+        const fallback = computeClientJourney(
+          fromStation.code,
+          toStation.code,
+          stations
+        );
+        if (fallback) {
+          setJourneyResult(fallback);
+          setErrorMsg("");
+          if (onJourneyCalculated) onJourneyCalculated(fallback.stations || []);
+        } else {
+          setErrorMsg(
+            "Unable to calculate route. Please try selecting different stations."
+          );
+          setJourneyResult(null);
+          if (onJourneyCalculated) onJourneyCalculated([]);
+        }
+        setLoading(false);
+      });
+
+    return () => {
+      ignore = true;
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [fromStation?.code, toStation?.code, onJourneyCalculated, stations]);
+
+  const handleSelectFrom = (s) => {
+    setFromStation(s);
+    setShowFromDropdown(false);
   };
 
-  return (
-    <div className="space-y-4">
-      {/* FROM / TO SELECTION CARD */}
-      <div className="rounded-3xl border border-slate-200 bg-white p-4.5 card-3d space-y-3.5">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-black uppercase tracking-wider text-rose-600 flex items-center gap-1.5">
-            <span>🚇</span> Pink Line Journey Planner
-          </span>
-          <span className="text-[10px] font-bold text-slate-400">
-            JMRC Official Slabs
-          </span>
-        </div>
+  const handleSelectTo = (s) => {
+    setToStation(s);
+    setShowToDropdown(false);
+  };
 
+  const handleSwap = () => {
+    if (!fromStation || !toStation || fromStation.station_id === toStation.station_id) return;
+    const tmp = fromStation;
+    setFromStation(toStation);
+    setToStation(tmp);
+  };
+
+  // Safe string extractions to prevent React child object crash
+  const fromStationName =
+    typeof journeyResult?.from_station === "object"
+      ? journeyResult.from_station?.name || ""
+      : String(journeyResult?.from_station || "");
+  const toStationName =
+    typeof journeyResult?.to_station === "object"
+      ? journeyResult.to_station?.name || ""
+      : String(journeyResult?.to_station || "");
+  const lineTitle =
+    typeof journeyResult?.line === "object"
+      ? journeyResult.line?.line_name || "Pink Line"
+      : String(journeyResult?.line || "Pink Line");
+
+  return (
+    <div className="w-full">
+      {/* FROM / TO SELECTION CARD */}
+      <div className="metro-station-selector-box">
         {/* FROM STATION INPUT */}
-        <div className="relative">
-          <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
-            From Station
-          </label>
-          <div
-            onClick={() => setShowFromDropdown(!showFromDropdown)}
-            className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 cursor-pointer hover:border-rose-400 transition card-3d-sunken"
-          >
-            <div className="flex items-center gap-2 overflow-hidden">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
-              <span className="text-xs font-bold text-slate-900 truncate">
-                {fromStation
-                  ? `${fromStation.name} (${fromStation.hindi_name})`
-                  : "Select boarding metro station"}
-              </span>
-            </div>
-            {fromStation ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setFromStation(null);
-                  setJourneyResult(null);
-                }}
-                className="text-xs text-slate-400 hover:text-black font-bold p-1"
-              >
-                ✕
-              </button>
-            ) : (
-              <span className="text-xs text-slate-400">▾</span>
-            )}
+        <div className="metro-input-group" ref={fromDropdownRef}>
+          <div className="metro-input-label">
+            <span>Boarding Station</span>
+            <span style={{ color: "#064e3b", fontWeight: 800 }}>Origin</span>
           </div>
 
+          <button
+            type="button"
+            onClick={() => {
+              setShowFromDropdown((prev) => !prev);
+              setShowToDropdown(false);
+            }}
+            className="metro-station-trigger"
+            aria-expanded={showFromDropdown}
+            aria-haspopup="listbox"
+          >
+            <div className="metro-station-trigger-content">
+              <span className="metro-station-indicator from" />
+              <span className="truncate">
+                {fromStation ? (
+                  <>
+                    <strong style={{ color: "var(--m-green-deep)" }}>{fromStation.name}</strong>{" "}
+                    <span style={{ color: "var(--m-text-secondary)", fontSize: "11px" }}>
+                      ({fromStation.hindi_name})
+                    </span>
+                  </>
+                ) : (
+                  <span style={{ color: "var(--m-text-secondary)" }}>Select boarding station</span>
+                )}
+              </span>
+            </div>
+            <span style={{ fontSize: "11px", color: "var(--m-text-secondary)" }}>
+              {showFromDropdown ? "▲" : "▼"}
+            </span>
+          </button>
+
           {showFromDropdown && (
-            <div className="absolute left-0 right-0 top-full mt-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl z-50 max-h-56 overflow-y-auto">
+            <div className="metro-station-dropdown" role="listbox">
               {stations.map((s) => (
                 <div
                   key={s.station_id}
-                  onClick={() => {
-                    setFromStation(s);
-                    setShowFromDropdown(false);
-                  }}
-                  className="flex items-center justify-between p-2.5 hover:bg-rose-50 rounded-xl cursor-pointer text-xs transition"
+                  onClick={() => handleSelectFrom(s)}
+                  className={`metro-dropdown-item ${
+                    fromStation?.station_id === s.station_id ? "selected" : ""
+                  }`}
+                  role="option"
+                  aria-selected={fromStation?.station_id === s.station_id}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-md bg-rose-100 text-rose-700 px-1.5 py-0.5 text-[10px] font-black">
-                      #{s.order}
-                    </span>
-                    <span className="font-bold text-slate-900">{s.name}</span>
-                    <span className="text-[10px] text-slate-400">
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span className="metro-station-order-badge">#{s.order}</span>
+                    <strong style={{ color: "var(--m-green-deep)" }}>{s.name}</strong>
+                    <span style={{ fontSize: "11px", color: "var(--m-text-muted)" }}>
                       {s.hindi_name}
                     </span>
                   </div>
-                  <span className="text-[10px] text-slate-400 font-medium">
+                  <span
+                    className={`metro-structure-pill ${
+                      s.structure?.toLowerCase() || "elevated"
+                    }`}
+                  >
                     {s.structure}
                   </span>
                 </div>
@@ -135,72 +333,82 @@ export default function MetroJourney({
         </div>
 
         {/* SWAP BUTTON */}
-        <div className="flex justify-center -my-1">
+        <div className="metro-swap-divider">
           <button
             type="button"
             onClick={handleSwap}
-            disabled={!fromStation && !toStation}
-            className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-black text-slate-700 disabled:opacity-40 transition btn-3d btn-3d-light"
+            disabled={!fromStation || !toStation || fromStation.station_id === toStation.station_id}
+            className="metro-swap-btn"
+            title="Swap boarding and destination stations"
           >
-            <span>⇅</span> Swap Stations
+            <span className="metro-swap-icon" style={{ fontSize: "13px" }}>⇅</span>
+            <span>Swap Stations</span>
           </button>
         </div>
 
         {/* TO STATION INPUT */}
-        <div className="relative">
-          <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
-            To Station
-          </label>
-          <div
-            onClick={() => setShowToDropdown(!showToDropdown)}
-            className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 cursor-pointer hover:border-rose-400 transition card-3d-sunken"
-          >
-            <div className="flex items-center gap-2 overflow-hidden">
-              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0"></span>
-              <span className="text-xs font-bold text-slate-900 truncate">
-                {toStation
-                  ? `${toStation.name} (${toStation.hindi_name})`
-                  : "Select destination metro station"}
-              </span>
-            </div>
-            {toStation ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setToStation(null);
-                  setJourneyResult(null);
-                }}
-                className="text-xs text-slate-400 hover:text-black font-bold p-1"
-              >
-                ✕
-              </button>
-            ) : (
-              <span className="text-xs text-slate-400">▾</span>
-            )}
+        <div className="metro-input-group" ref={toDropdownRef}>
+          <div className="metro-input-label">
+            <span>Destination Station</span>
+            <span style={{ color: "#9f1239", fontWeight: 800 }}>Alight</span>
           </div>
 
+          <button
+            type="button"
+            onClick={() => {
+              setShowToDropdown((prev) => !prev);
+              setShowFromDropdown(false);
+            }}
+            className="metro-station-trigger"
+            aria-expanded={showToDropdown}
+            aria-haspopup="listbox"
+          >
+            <div className="metro-station-trigger-content">
+              <span className="metro-station-indicator to" />
+              <span className="truncate">
+                {toStation ? (
+                  <>
+                    <strong style={{ color: "var(--m-green-deep)" }}>{toStation.name}</strong>{" "}
+                    <span style={{ color: "var(--m-text-secondary)", fontSize: "11px" }}>
+                      ({toStation.hindi_name})
+                    </span>
+                  </>
+                ) : (
+                  <span style={{ color: "var(--m-text-secondary)" }}>
+                    Select destination station
+                  </span>
+                )}
+              </span>
+            </div>
+            <span style={{ fontSize: "11px", color: "var(--m-text-secondary)" }}>
+              {showToDropdown ? "▲" : "▼"}
+            </span>
+          </button>
+
           {showToDropdown && (
-            <div className="absolute left-0 right-0 top-full mt-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl z-50 max-h-56 overflow-y-auto">
+            <div className="metro-station-dropdown" role="listbox">
               {stations.map((s) => (
                 <div
                   key={s.station_id}
-                  onClick={() => {
-                    setToStation(s);
-                    setShowToDropdown(false);
-                  }}
-                  className="flex items-center justify-between p-2.5 hover:bg-rose-50 rounded-xl cursor-pointer text-xs transition"
+                  onClick={() => handleSelectTo(s)}
+                  className={`metro-dropdown-item ${
+                    toStation?.station_id === s.station_id ? "selected" : ""
+                  }`}
+                  role="option"
+                  aria-selected={toStation?.station_id === s.station_id}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-md bg-rose-100 text-rose-700 px-1.5 py-0.5 text-[10px] font-black">
-                      #{s.order}
-                    </span>
-                    <span className="font-bold text-slate-900">{s.name}</span>
-                    <span className="text-[10px] text-slate-400">
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span className="metro-station-order-badge">#{s.order}</span>
+                    <strong style={{ color: "var(--m-green-deep)" }}>{s.name}</strong>
+                    <span style={{ fontSize: "11px", color: "var(--m-text-muted)" }}>
                       {s.hindi_name}
                     </span>
                   </div>
-                  <span className="text-[10px] text-slate-400 font-medium">
+                  <span
+                    className={`metro-structure-pill ${
+                      s.structure?.toLowerCase() || "elevated"
+                    }`}
+                  >
                     {s.structure}
                   </span>
                 </div>
@@ -209,139 +417,285 @@ export default function MetroJourney({
           )}
         </div>
 
-        {/* SEARCH BUTTON */}
+        {/* PLAN JOURNEY BUTTON */}
         <button
           type="button"
-          onClick={() =>
-            calculateJourney(fromStation?.code, toStation?.code)
-          }
+          onClick={() => calculateJourney(fromStation?.code, toStation?.code)}
           disabled={!fromStation || !toStation || loading}
-          className="w-full rounded-2xl py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-40 transition btn-3d btn-3d-metro"
+          className="metro-plan-btn"
         >
-          {loading ? "Calculating Route..." : "Plan Metro Journey"}
+          {loading ? (
+            <span>Calculating Journey...</span>
+          ) : (
+            <>
+              <span>Plan Metro Journey</span>
+              <span aria-hidden="true">→</span>
+            </>
+          )}
         </button>
 
         {errorMsg && (
-          <p className="text-xs font-bold text-red-600 text-center">{errorMsg}</p>
+          <div
+            style={{
+              marginTop: "10px",
+              padding: "8px 12px",
+              background: "var(--m-pink-tint)",
+              border: "1px solid var(--m-pink-border)",
+              borderRadius: "8px",
+              color: "var(--m-pink-deep)",
+              fontSize: "11.5px",
+              fontWeight: 700,
+              textAlign: "center",
+            }}
+          >
+            {errorMsg}
+          </div>
         )}
       </div>
 
       {/* JOURNEY RESULTS CARD */}
       {journeyResult && (
-        <div className="rounded-3xl border border-slate-200 bg-white p-4.5 card-3d space-y-4">
+        <div className="metro-journey-result-card">
           {/* Header Summary */}
-          <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+          <div className="metro-result-summary-header">
             <div>
-              <div className="flex items-center gap-2">
-                <span className="rounded-md bg-rose-600 px-2 py-0.5 text-xs font-black text-white">
-                  Pink Line
+              <div className="metro-direction-badge">
+                <span>🚇 {lineTitle}</span>
+                <span>•</span>
+                <span>{journeyResult.direction || "Scheduled Corridor"}</span>
+              </div>
+              <h3
+                style={{
+                  margin: "8px 0 2px",
+                  fontSize: "14.5px",
+                  fontWeight: 850,
+                  color: "var(--m-green-deep)",
+                }}
+              >
+                {fromStationName} to {toStationName}
+              </h3>
+            </div>
+
+            <div style={{ textAlign: "right" }}>
+              <div className="metro-fare-amount">
+                ₹{journeyResult.fare?.token_fare ?? "--"}
+              </div>
+              <span className="metro-fare-title">Token Fare</span>
+            </div>
+          </div>
+
+          {/* Key Metrics Grid */}
+          <div className="metro-journey-metrics-grid">
+            <div className="metro-metric-box">
+              <strong>{journeyResult.total_stops ?? "--"}</strong>
+              <span>Stations</span>
+            </div>
+            <div className="metro-metric-box">
+              <strong>~{journeyResult.estimated_travel_time_mins ?? "--"} min</strong>
+              <span>Travel Time</span>
+            </div>
+            <div className="metro-metric-box">
+              <strong>{journeyResult.distance_km ?? "--"} km</strong>
+              <span>Distance</span>
+            </div>
+          </div>
+
+          {/* Dual Fare Box (Token vs Smart Card 10% Discount) */}
+          <div className="metro-fare-comparison-grid">
+            <div className="metro-fare-card standard">
+              <span className="metro-fare-title">Standard Token</span>
+              <div className="metro-fare-amount" style={{ margin: "4px 0 2px" }}>
+                ₹{journeyResult.fare?.token_fare ?? "--"}
+              </div>
+              <p style={{ margin: 0, fontSize: "10px", color: "var(--m-text-muted)" }}>
+                Single Journey Token
+              </p>
+            </div>
+
+            <div className="metro-fare-card smart">
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <span
+                  className="metro-fare-title"
+                  style={{ color: "var(--m-green-mid)" }}
+                >
+                  Smart Card
                 </span>
-                <span className="text-xs font-bold text-slate-900">
-                  {journeyResult.direction}
+                <span
+                  style={{
+                    background: "var(--m-green-border)",
+                    color: "var(--m-green-deep)",
+                    fontSize: "9px",
+                    fontWeight: 900,
+                    padding: "2px 5px",
+                    borderRadius: "4px",
+                  }}
+                >
+                  10% OFF
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 font-medium mt-1">
-                {journeyResult.total_stops} stations • ~
-                {journeyResult.estimated_travel_time_mins} mins •{" "}
-                {journeyResult.distance_km} km
+              <div
+                className="metro-fare-amount"
+                style={{ color: "var(--m-green-deep)", margin: "4px 0 2px" }}
+              >
+                ₹{journeyResult.fare?.smart_card_fare ?? "--"}
+              </div>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "10px",
+                  color: "var(--m-green-mid)",
+                  fontWeight: 750,
+                }}
+              >
+                JMRC Metro Card Tap
               </p>
             </div>
-            <div className="text-right">
-              <span className="text-base font-black text-rose-600">
-                ₹{journeyResult.fare?.token_fare}
-              </span>
-              <p className="text-[9px] text-slate-400 font-bold uppercase">
-                Single Token
-              </p>
-            </div>
           </div>
 
-          {/* Fare Details */}
-          <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-100 card-3d-sunken">
-            <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-xs card-3d">
-              <span className="text-[9px] font-black uppercase text-slate-400 block">
-                Standard Token
-              </span>
-              <span className="text-sm font-black text-slate-900">
-                ₹{journeyResult.fare?.token_fare}
-              </span>
-              <p className="text-[9px] text-slate-500 mt-0.5">Cash / Counter</p>
+          {/* Service Schedule Band */}
+          {journeyResult.operating_hours && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "10px 14px",
+                background: "var(--m-cream-soft)",
+                borderRadius: "var(--m-radius-sm)",
+                border: "1px solid var(--m-cream-border-subtle)",
+                fontSize: "11px",
+                marginBottom: "14px",
+              }}
+            >
+              <div>
+                <span
+                  style={{
+                    color: "var(--m-text-muted)",
+                    fontSize: "9.5px",
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    display: "block",
+                  }}
+                >
+                  First Train
+                </span>
+                <strong style={{ color: "var(--m-green-deep)" }}>
+                  {journeyResult.operating_hours.first_train || "06:20 AM"}
+                </strong>
+              </div>
+              <div>
+                <span
+                  style={{
+                    color: "var(--m-text-muted)",
+                    fontSize: "9.5px",
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    display: "block",
+                  }}
+                >
+                  Last Train
+                </span>
+                <strong style={{ color: "var(--m-green-deep)" }}>
+                  {journeyResult.operating_hours.last_train || "09:50 PM"}
+                </strong>
+              </div>
+              <div>
+                <span
+                  style={{
+                    color: "var(--m-text-muted)",
+                    fontSize: "9.5px",
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    display: "block",
+                  }}
+                >
+                  Frequency
+                </span>
+                <strong style={{ color: "var(--m-green-deep)" }}>
+                  Every {journeyResult.operating_hours.frequency_mins || "10-12"}m
+                </strong>
+              </div>
             </div>
-            <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200/80 shadow-xs card-3d">
-              <span className="text-[9px] font-black uppercase text-emerald-700 block">
-                Smart Card (10% Off)
-              </span>
-              <span className="text-sm font-black text-emerald-700">
-                ₹{journeyResult.fare?.smart_card_fare}
-              </span>
-              <p className="text-[9px] text-emerald-600 mt-0.5">JMRC Metro Card</p>
-            </div>
-          </div>
+          )}
 
-          {/* Operating Timings */}
-          <div className="flex items-center justify-between text-[11px] bg-rose-50/70 p-3 rounded-2xl border border-rose-200/80 text-rose-950 font-bold card-3d">
-            <div>
-              <span className="text-[9px] uppercase text-rose-600 block">
-                First Train
-              </span>
-              <span>{journeyResult.operating_hours?.first_train}</span>
-            </div>
-            <div>
-              <span className="text-[9px] uppercase text-rose-600 block">
-                Last Train
-              </span>
-              <span>{journeyResult.operating_hours?.last_train}</span>
-            </div>
-            <div>
-              <span className="text-[9px] uppercase text-rose-600 block">
-                Headway
-              </span>
-              <span>Every {journeyResult.operating_hours?.frequency_mins}m</span>
-            </div>
-          </div>
+          {/* Vertical Station Sequence Timeline */}
+          <div className="metro-timeline-container">
+            <span
+              style={{
+                fontSize: "10.5px",
+                fontWeight: 850,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                color: "var(--m-text-muted)",
+                display: "block",
+              }}
+            >
+              Journey Route ({journeyResult.stations?.length || 0} Stations)
+            </span>
 
-          {/* Straight Vertical Station Timeline */}
-          <div className="space-y-2 pt-1">
-            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-              Station Sequence ({journeyResult.stations?.length} stops)
-            </p>
-            <div className="relative pl-6 space-y-3">
-              {/* Vertical straight line */}
-              <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-rose-200"></div>
-
+            <div className="metro-timeline-list">
               {journeyResult.stations?.map((st, idx) => {
                 const isStart = idx === 0;
                 const isEnd = idx === journeyResult.stations.length - 1;
+                const isUnderground = st.structure
+                  ?.toLowerCase()
+                  .includes("underground");
 
                 return (
-                  <div key={st.station_id} className="relative flex items-start gap-3">
-                    {/* Circle Node */}
-                    <div
-                      className={`absolute -left-6 top-1 w-3 h-3 rounded-full border-2 border-white shadow-xs z-10 ${
-                        isStart
-                          ? "bg-emerald-500 ring-2 ring-emerald-200"
-                          : isEnd
-                          ? "bg-rose-600 ring-2 ring-rose-200"
-                          : "bg-slate-400"
-                      }`}
-                    />
+                  <div
+                    key={st.station_id || idx}
+                    className={`metro-timeline-node ${
+                      isStart ? "start" : isEnd ? "end" : ""
+                    }`}
+                  >
+                    <span className="metro-timeline-dot" />
 
-                    <div className="flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-xs text-slate-900">
+                    <div style={{ flex: 1 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <span className="metro-timeline-station-name">
                           {st.name}
                         </span>
-                        <span className="text-[10px] text-slate-400 font-medium">
-                          {st.hindi_name}
+                        <span
+                          style={{
+                            fontSize: "10.5px",
+                            color: "var(--m-text-muted)",
+                          }}
+                        >
+                          ({st.hindi_name})
                         </span>
-                        <span className="rounded text-[9px] bg-slate-100 text-slate-600 px-1 py-0.2 font-semibold">
+                        <span
+                          className={`metro-structure-pill ${
+                            isUnderground ? "underground" : "elevated"
+                          }`}
+                        >
                           {st.structure}
                         </span>
                       </div>
-                      {st.interchange !== "None" && (
-                        <p className="text-[10px] text-blue-600 font-bold mt-0.5">
+
+                      {st.interchange && st.interchange !== "None" && (
+                        <div
+                          style={{
+                            fontSize: "10px",
+                            color: "#0369a1",
+                            fontWeight: 750,
+                            marginTop: "2px",
+                          }}
+                        >
                           🔄 {st.interchange}
-                        </p>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -350,14 +704,14 @@ export default function MetroJourney({
             </div>
           </div>
 
-          {/* Genuine Data Notice */}
-          <div className="rounded-2xl bg-slate-50 p-2.5 border border-slate-200 text-slate-500 text-[10px] leading-relaxed">
-            <span className="font-bold text-slate-700">Notice: </span>
-            {journeyResult.live_telemetry_notice}
+          {/* Genuine Telemetry & Schedule Disclaimer */}
+          <div className="metro-source-disclaimer">
+            <strong>Travel Notice: </strong>
+            {journeyResult.live_telemetry_notice ||
+              "JMRC live train GPS telemetry is restricted to official internal signaling; intermediate travel durations are computed from official timetable headways."}
           </div>
         </div>
       )}
     </div>
   );
 }
-

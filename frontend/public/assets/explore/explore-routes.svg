@@ -1,0 +1,59 @@
+<svg width="300" height="170" viewBox="0 0 300 170" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="jalSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fdba74" />
+      <stop offset="50%" stop-color="#fed7aa" />
+      <stop offset="100%" stop-color="#fef08a" />
+    </linearGradient>
+    <linearGradient id="jalWater" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="40%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#0369a1" />
+    </linearGradient>
+    <linearGradient id="palace" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ea580c" />
+      <stop offset="100%" stop-color="#c2410c" />
+    </linearGradient>
+  </defs>
+
+  <!-- Sky -->
+  <rect width="300" height="110" fill="url(#jalSky)" />
+
+  <!-- Aravalli Hills in Background -->
+  <path d="M0 85 Q60 55 120 78 T240 60 T300 80 V110 H0 Z" fill="#b45309" opacity="0.45" />
+
+  <!-- Jal Mahal Palace -->
+  <!-- Base Island -->
+  <rect x="70" y="86" width="160" height="24" rx="2" fill="url(#palace)" />
+  <!-- Arches and Windows -->
+  <path d="M82 104 v-8 a4 4 0 0 1 8 0 v8 m12 0 v-8 a4 4 0 0 1 8 0 v8 m12 0 v-8 a4 4 0 0 1 8 0 v8 m12 0 v-8 a4 4 0 0 1 8 0 v8 m12 0 v-8 a4 4 0 0 1 8 0 v8 m12 0 v-8 a4 4 0 0 1 8 0 v8 m12 0 v-8 a4 4 0 0 1 8 0 v8" stroke="#fef08a" stroke-width="1.8" fill="none" />
+  
+  <!-- Chhatris / Domes on Roof -->
+  <!-- Center Chhatri -->
+  <rect x="142" y="70" width="16" height="16" fill="#c2410c" />
+  <path d="M140 70 q10 -12 20 0 Z" fill="#ea580c" stroke="#fef08a" stroke-width="1" />
+  <line x1="150" y1="58" x2="150" y2="54" stroke="#fef08a" stroke-width="1.5" />
+  
+  <!-- Left Corner Chhatri -->
+  <rect x="76" y="74" width="12" height="12" fill="#c2410c" />
+  <path d="M74 74 q8 -10 16 0 Z" fill="#ea580c" stroke="#fef08a" stroke-width="1" />
+
+  <!-- Right Corner Chhatri -->
+  <rect x="212" y="74" width="12" height="12" fill="#c2410c" />
+  <path d="M210 74 q8 -10 16 0 Z" fill="#ea580c" stroke="#fef08a" stroke-width="1" />
+
+  <!-- Man Sagar Lake Water -->
+  <rect y="110" width="300" height="60" fill="url(#jalWater)" />
+
+  <!-- Water Ripples & Reflections -->
+  <ellipse cx="150" cy="118" rx="80" ry="3" fill="#fef08a" opacity="0.3" />
+  <ellipse cx="140" cy="126" rx="60" ry="2.5" fill="#fef08a" opacity="0.25" />
+  <ellipse cx="160" cy="134" rx="45" ry="2" fill="#fef08a" opacity="0.2" />
+  <ellipse cx="150" cy="144" rx="70" ry="2" fill="#ffffff" opacity="0.15" />
+
+  <!-- Route Line Overlay Pin -->
+  <path d="M30 145 Q90 125 150 142 T270 130" stroke="#ffffff" stroke-width="2.5" stroke-dasharray="6 4" opacity="0.75" />
+  <circle cx="210" cy="133" r="5" fill="#10b981" />
+  <circle cx="210" cy="133" r="2.5" fill="#ffffff" />
+</svg>
+

@@ -1,331 +1,662 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import "./MetroHome.css";
 import MetroMap from "./MetroMap";
 import MetroJourney from "./MetroJourney";
 import MetroSearch from "./MetroSearch";
+import { METRO_STATIONS, JMRC_PINK_LINE } from "./metroData";
+import { apiUrl } from "../apiBase";
 
 export default function MetroHome({ onBackToBus }) {
-  const [stations, setStations] = useState([]);
+  const [stations, setStations] = useState(METRO_STATIONS);
   const [status, setStatus] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("journey"); // "journey" | "stations" | "fares"
-
-  const [fromStation, setFromStation] = useState(null);
-  const [toStation, setToStation] = useState(null);
+  const [fromStation, setFromStation] = useState(METRO_STATIONS[0]);
+  const [toStation, setToStation] = useState(METRO_STATIONS[METRO_STATIONS.length - 1]);
   const [selectedStation, setSelectedStation] = useState(null);
-  const [journeyStations, setJourneyStations] = useState([]);
+  const [journeyStations, setJourneyStations] = useState(METRO_STATIONS);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    fetchMetroData();
+  const loadData = useCallback(() => {
+    let ignore = false;
+    Promise.allSettled([
+      fetch(apiUrl("/api/metro/stations")).then((response) => {
+        if (!response.ok) throw new Error("Station data unavailable");
+        return response.json();
+      }),
+      fetch(apiUrl("/api/metro/status")).then((response) => {
+        if (!response.ok) throw new Error("Status data unavailable");
+        return response.json();
+      }),
+    ])
+      .then(([stationResult, statusResult]) => {
+        if (ignore) return;
+        if (
+          stationResult.status === "fulfilled" &&
+          Array.isArray(stationResult.value?.stations) &&
+          stationResult.value.stations.length > 0
+        ) {
+          const list = stationResult.value.stations;
+          setStations(list);
+
+          if (list.length >= 2) {
+            setFromStation((previous) => previous || list[0]); // Mansarovar
+            setToStation((previous) => previous || list[list.length - 1]); // Badi Chaupar
+          }
+        } else {
+          // Resilient client fallback from official JMRC dataset
+          setStations(METRO_STATIONS);
+          if (METRO_STATIONS.length >= 2) {
+            setFromStation((previous) => previous || METRO_STATIONS[0]);
+            setToStation((previous) => previous || METRO_STATIONS[METRO_STATIONS.length - 1]);
+          }
+        }
+
+        if (
+          statusResult.status === "fulfilled" &&
+          statusResult.value?.success
+        ) {
+          setStatus(statusResult.value);
+        } else {
+          setStatus(JMRC_PINK_LINE);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (ignore) return;
+        console.warn("Fetch metro data error; using client dataset:", err);
+        setStations(METRO_STATIONS);
+        if (METRO_STATIONS.length >= 2) {
+          setFromStation((previous) => previous || METRO_STATIONS[0]);
+          setToStation((previous) => previous || METRO_STATIONS[METRO_STATIONS.length - 1]);
+        }
+        setStatus(JMRC_PINK_LINE);
+        setLoading(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
   }, []);
 
-  const fetchMetroData = async () => {
-    try {
-      setLoading(true);
-      const [stRes, statusRes] = await Promise.allSettled([
-        fetch("https://jaipur-bus-live-5nvg.vercel.app/api/metro/stations").then((r) =>
-          r.json()
-        ),
-        fetch("https://jaipur-bus-live-5nvg.vercel.app/api/metro/status").then((r) => r.json()),
-      ]);
+  useEffect(() => {
+    return loadData();
+  }, [loadData]);
 
-      if (stRes.status === "fulfilled" && Array.isArray(stRes.value?.stations)) {
-        setStations(stRes.value.stations);
-        // Default From/To suggestions: Mansarovar and Badi Chaupar
-        if (stRes.value.stations.length >= 2) {
-          setFromStation(stRes.value.stations[0]); // Mansarovar
-          setToStation(stRes.value.stations[stRes.value.stations.length - 1]); // Badi Chaupar
-        }
-      }
+  const handleRetry = () => {
+    setLoading(true);
+    setError("");
+    loadData();
+  };
 
-      if (statusRes.status === "fulfilled" && statusRes.value?.success) {
-        setStatus(statusRes.value);
-      }
-    } catch (err) {
-      console.warn("Fetch metro data error:", err);
-    } finally {
-      setLoading(false);
+  const handleSelectStation = (station, switchTab = false) => {
+    setSelectedStation(station);
+    if (switchTab) {
+      setActiveTab("journey");
     }
   };
 
-  const handleSelectStation = (st) => {
-    setSelectedStation(st);
-  };
-
-  const handleSetFromStation = (st) => {
-    setFromStation(st);
+  const handleSetFromStation = (station) => {
+    setFromStation(station);
     setActiveTab("journey");
   };
 
-  const handleSetToStation = (st) => {
-    setToStation(st);
+  const handleSetToStation = (station) => {
+    setToStation(station);
     setActiveTab("journey");
   };
 
   return (
-    <div className="space-y-4 pb-12">
-      {/* 1. METRO SYSTEM HERO CARD */}
-      <div className="rounded-3xl bg-linear-to-br from-rose-600 via-rose-700 to-pink-800 p-4.5 text-white shadow-lg border border-rose-500/30">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <span className="text-2xl filter drop-shadow">🚇</span>
-            <div>
-              <h2 className="text-sm font-black tracking-wide uppercase">
-                Jaipur Metro • Pink Line
-              </h2>
-              <p className="text-[10px] text-rose-200 font-medium">
-                Phase 1A & 1B (Mansarovar ↔ Badi Chaupar)
-              </p>
-            </div>
+    <main className="metro-premium" aria-label="Jaipur Metro Guide">
+      {/* 1. TOP NAVIGATION BAR */}
+      <header className="metro-topbar">
+        <div className="metro-brand">
+          <div className="metro-brand-mark" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="4" y="3" width="16" height="16" rx="3" />
+              <path d="M4 11h16" />
+              <path d="M12 3v8" />
+              <path d="m8 19-2 3" />
+              <path d="m16 19 2 3" />
+              <circle cx="8" cy="15" r="1" fill="currentColor" />
+              <circle cx="16" cy="15" r="1" fill="currentColor" />
+            </svg>
           </div>
-          <span className="rounded-full bg-white/20 backdrop-blur-xs px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white shadow-2xs border border-white/20">
-            ● Operational
+          <div className="metro-brand-text">
+            <h1>Jaipur Metro Guide</h1>
+            <p className="metro-brand-subtitle">
+              <span>●</span> Pink Line · Phase 1A &amp; 1B
+            </p>
+          </div>
+        </div>
+
+        <div className="metro-topbar-actions">
+          <div className="metro-status-pill" title="JMRC Operating Status">
+            <span className="metro-status-dot" />
+            <span>{status?.operational_status || "Operational"} · 06:20 – 21:50</span>
+          </div>
+
+          {typeof onBackToBus === "function" && (
+            <button
+              type="button"
+              className="metro-back-button"
+              onClick={onBackToBus}
+              aria-label="Return to Jaipur Bus Tracking"
+            >
+              <span>←</span>
+              <span>Bus Tracking</span>
+            </button>
+          )}
+        </div>
+      </header>
+
+      {/* 2. HERO CARD (EXACT SIZE & POSITION OF ORIGINAL HERO CARD) */}
+      <section className="metro-hero" aria-label="Jaipur Metro Guide">
+        <picture className="metro-hero-picture">
+          <source
+            media="(max-width: 600px)"
+            type="image/webp"
+            srcSet="/assets/metro/jaipur-metro-guide-hero-mobile.webp 480w"
+            sizes="(max-width: 600px) 480px"
+          />
+          <source
+            media="(max-width: 600px)"
+            type="image/jpeg"
+            srcSet="/assets/metro/jaipur-metro-guide-hero-mobile.jpg 480w"
+            sizes="(max-width: 600px) 480px"
+          />
+          <source
+            type="image/webp"
+            srcSet="/assets/metro/jaipur-metro-guide-hero.webp 800w"
+            sizes="(max-width: 960px) 800px, 800px"
+          />
+          <source
+            type="image/jpeg"
+            srcSet="/assets/metro/jaipur-metro-guide-hero.jpg 800w"
+            sizes="(max-width: 960px) 800px, 800px"
+          />
+          <img
+            src="/assets/metro/jaipur-metro-guide-hero.webp"
+            alt="Jaipur Metro Route Map and Pink Line Stations Guide - Jaipur Bus Live"
+            width="800"
+            height="800"
+            fetchPriority="high"
+            decoding="async"
+            className="metro-hero-img"
+          />
+        </picture>
+      </section>
+
+      {/* 3. METRO OVERVIEW STATS BAR */}
+      <section className="metro-stats" aria-label="Key corridor metrics">
+        <div className="metro-stat-card">
+          <div className="metro-stat-icon-wrap" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+              <line x1="4" y1="22" x2="4" y2="15" />
+            </svg>
+          </div>
+          <div>
+            <div className="metro-stat-value">11.97 km</div>
+            <div className="metro-stat-label">Corridor Length</div>
+          </div>
+        </div>
+
+        <div className="metro-stat-card">
+          <div className="metro-stat-icon-wrap" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="9" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </div>
+          <div>
+            <div className="metro-stat-value">11 Stations</div>
+            <div className="metro-stat-label">8 Elevated · 3 Underground</div>
+          </div>
+        </div>
+
+        <div className="metro-stat-card">
+          <div className="metro-stat-icon-wrap" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          </div>
+          <div>
+            <div className="metro-stat-value">06:20 – 21:50</div>
+            <div className="metro-stat-label">Operating Schedule</div>
+          </div>
+        </div>
+
+        <div className="metro-stat-card">
+          <div className="metro-stat-icon-wrap" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 3h12" />
+              <path d="M6 8h12" />
+              <path d="m6 13 8.5 8" />
+              <path d="M6 13h3a4 4 0 0 0 0-8" />
+            </svg>
+          </div>
+          <div>
+            <div className="metro-stat-value">₹6 – ₹22</div>
+            <div className="metro-stat-label">Token / 10% Card Rebate</div>
+          </div>
+        </div>
+      </section>
+
+      {/* 4. MAIN NAVIGATION TABS */}
+      <section className="metro-main-section">
+        <div className="metro-section-header">
+          <div>
+            <div className="metro-section-eyebrow">Explore Public Transit</div>
+            <h2 className="metro-section-title">Pink Line Corridor Tools</h2>
+          </div>
+          <span style={{ fontSize: "11px", fontWeight: 750, color: "var(--m-text-muted)" }}>
+            Phase 1A &amp; Phase 1B
           </span>
         </div>
 
-        {/* Metro Key Stats */}
-        <div className="grid grid-cols-3 gap-2 mt-3.5 pt-3 border-t border-rose-500/40 text-center">
-          <div className="bg-white/10 rounded-2xl p-2.5 border border-white/10 shadow-inner">
-            <span className="text-xs font-black block">11 Stations</span>
-            <span className="text-[9px] text-rose-200">11.97 km Route</span>
-          </div>
-          <div className="bg-white/10 rounded-2xl p-2.5 border border-white/10 shadow-inner">
-            <span className="text-xs font-black block">6:20 AM - 9:50 PM</span>
-            <span className="text-[9px] text-rose-200">Daily Operations</span>
-          </div>
-          <div className="bg-white/10 rounded-2xl p-2.5 border border-white/10 shadow-inner">
-            <span className="text-xs font-black block">10-12 Mins</span>
-            <span className="text-[9px] text-rose-200">Peak Headway</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Real Data Notice Banner */}
-      <div className="flex items-center gap-2.5 rounded-2xl bg-amber-50 border border-amber-200/80 p-3 text-amber-950 text-xs card-3d">
-        <span className="text-base shrink-0">ℹ️</span>
-        <div className="leading-tight">
-          <span className="font-black text-[11px] block uppercase tracking-wide text-amber-900">
-            Official JMRC Passenger Information
-          </span>
-          <span className="text-[10px] text-amber-800 font-medium">
-            Live train GPS is not publicly available. Showing authorized JMRC timetable, fare slabs, and station coordinates.
-          </span>
-        </div>
-      </div>
-
-      {/* 2. TAB NAVIGATION */}
-      <div className="flex rounded-2xl bg-slate-100/90 p-1 border border-slate-200 card-3d-sunken text-xs font-black">
-        <button
-          type="button"
-          onClick={() => setActiveTab("journey")}
-          className={`flex-1 rounded-xl py-2 transition text-center ${
-            activeTab === "journey"
-              ? "bg-white text-rose-600 shadow-sm font-black border border-slate-200/60"
-              : "text-slate-600 hover:text-black active:translate-y-0.5"
-          }`}
-        >
-          🗺️ Journey & Map
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("stations")}
-          className={`flex-1 rounded-xl py-2 transition text-center ${
-            activeTab === "stations"
-              ? "bg-white text-rose-600 shadow-sm font-black border border-slate-200/60"
-              : "text-slate-600 hover:text-black active:translate-y-0.5"
-          }`}
-        >
-          🔍 Stations ({stations.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("fares")}
-          className={`flex-1 rounded-xl py-2 transition text-center ${
-            activeTab === "fares"
-              ? "bg-white text-rose-600 shadow-sm font-black border border-slate-200/60"
-              : "text-slate-600 hover:text-black active:translate-y-0.5"
-          }`}
-        >
-          💳 Fares & Timings
-        </button>
-      </div>
-
-      {/* Loading & Error States */}
-      {loading ? (
-        <div className="py-16 text-center text-slate-500">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-3 border-rose-600 border-t-transparent"></div>
-          <p className="mt-3 text-xs font-bold">Loading Jaipur Metro stations...</p>
-        </div>
-      ) : stations.length === 0 ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-center space-y-2">
-          <p className="text-xs font-bold text-red-700">Unable to load metro data</p>
+        <nav className="metro-nav-tabs" role="tablist" aria-label="Metro guide sections">
           <button
             type="button"
-            onClick={fetchMetroData}
-            className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-black text-white hover:bg-rose-700"
+            role="tab"
+            aria-selected={activeTab === "journey"}
+            className={`metro-tab-btn ${activeTab === "journey" ? "active" : ""}`}
+            onClick={() => setActiveTab("journey")}
           >
-            Retry
+            <span aria-hidden="true">⇄</span>
+            <span>Plan Journey</span>
           </button>
-        </div>
-      ) : (
-        <>
-          {/* 3. TAB CONTENT */}
-          {activeTab === "journey" && (
-        <div className="space-y-4">
-          {/* Interactive Map */}
-          <MetroMap
-            stations={stations}
-            selectedStation={selectedStation}
-            onSelectStation={handleSelectStation}
-            onSetFromStation={handleSetFromStation}
-            onSetToStation={handleSetToStation}
-            journeyStations={journeyStations}
-          />
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "stations"}
+            className={`metro-tab-btn ${activeTab === "stations" ? "active" : ""}`}
+            onClick={() => setActiveTab("stations")}
+          >
+            <span aria-hidden="true">◎</span>
+            <span>Explore Stations ({stations.length || 11})</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "fares"}
+            className={`metro-tab-btn ${activeTab === "fares" ? "active" : ""}`}
+            onClick={() => setActiveTab("fares")}
+          >
+            <span aria-hidden="true">₹</span>
+            <span>Fares &amp; Timings</span>
+          </button>
+        </nav>
 
-          {/* Journey Planner */}
-          <MetroJourney
-            stations={stations}
-            fromStation={fromStation}
-            toStation={toStation}
-            setFromStation={setFromStation}
-            setToStation={setToStation}
-            onJourneyCalculated={setJourneyStations}
-          />
-        </div>
-      )}
-
-      {activeTab === "stations" && (
-        <div className="space-y-4">
-          <MetroSearch
-            stations={stations}
-            selectedStation={selectedStation}
-            onSelectStation={handleSelectStation}
-            onSetFromStation={handleSetFromStation}
-            onSetToStation={handleSetToStation}
-          />
-        </div>
-      )}
-
-      {activeTab === "fares" && (
-        <div className="space-y-4">
-          {/* Official Fare Slabs */}
-          <div className="rounded-3xl border border-slate-200 bg-white p-4.5 card-3d space-y-3.5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-              <h3 className="text-xs font-black uppercase text-slate-900">
-                Official JMRC Fare Slabs
-              </h3>
-              <span className="text-[10px] font-black text-rose-600">
-                ₹6 - ₹22 Max
-              </span>
+        {/* Error notification banner if any */}
+        {error && (
+          <div style={{ marginBottom: "16px", padding: "12px 16px", background: "var(--m-pink-tint)", border: "1px solid var(--m-pink-border)", borderRadius: "var(--m-radius-md)", color: "var(--m-pink-deep)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }} role="alert">
+            <div>
+              <strong style={{ display: "block", fontSize: "12.5px" }}>Service Notice</strong>
+              <span style={{ fontSize: "11.5px" }}>{error}</span>
             </div>
-
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-200/80 card-3d">
-                <div>
-                  <span className="font-bold text-slate-800">0 – 2 Stations</span>
-                  <p className="text-[10px] text-slate-500">Short hop journey</p>
-                </div>
-                <div className="text-right">
-                  <span className="font-black text-slate-900 block">₹6 Token</span>
-                  <span className="text-[10px] font-bold text-emerald-600">
-                    ₹5.40 Smart Card
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-200/80 card-3d">
-                <div>
-                  <span className="font-bold text-slate-800">3 – 5 Stations</span>
-                  <p className="text-[10px] text-slate-500">Medium distance</p>
-                </div>
-                <div className="text-right">
-                  <span className="font-black text-slate-900 block">₹12 Token</span>
-                  <span className="text-[10px] font-bold text-emerald-600">
-                    ₹10.80 Smart Card
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-200/80 card-3d">
-                <div>
-                  <span className="font-bold text-slate-800">6 – 8 Stations</span>
-                  <p className="text-[10px] text-slate-500">Long distance</p>
-                </div>
-                <div className="text-right">
-                  <span className="font-black text-slate-900 block">₹18 Token</span>
-                  <span className="text-[10px] font-bold text-emerald-600">
-                    ₹16.20 Smart Card
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-rose-50/70 border border-rose-200/80 card-3d">
-                <div>
-                  <span className="font-bold text-rose-950">9 – 10 Stations</span>
-                  <p className="text-[10px] text-rose-700">Full corridor terminal to terminal</p>
-                </div>
-                <div className="text-right">
-                  <span className="font-black text-rose-700 block">₹22 Token</span>
-                  <span className="text-[10px] font-bold text-emerald-600">
-                    ₹19.80 Smart Card
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-amber-50 p-3 border border-amber-200/80 text-amber-900 text-[10px] leading-relaxed card-3d">
-              <span className="font-bold">Smart Card Privilege: </span>
-              Commuters using the JMRC Smart Card receive an automatic 10% discount on every journey.
-            </div>
+            <button
+              type="button"
+              onClick={handleRetry}
+              style={{ padding: "6px 12px", background: "#ffffff", border: "1px solid var(--m-pink-border)", borderRadius: "6px", color: "var(--m-pink-deep)", fontSize: "11px", fontWeight: 800 }}
+            >
+              Retry
+            </button>
           </div>
+        )}
 
-          {/* Service Details & Helpline */}
-          <div className="rounded-3xl border border-slate-200 bg-white p-4.5 card-3d space-y-3.5">
-            <h3 className="text-xs font-black uppercase text-slate-900">
-              Timetable & Help Information
-            </h3>
-
-            <div className="space-y-2 text-xs">
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">First Train Departure:</span>
-                <span className="font-bold text-slate-900">06:20 AM</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">Last Train Departure:</span>
-                <span className="font-bold text-slate-900">09:50 PM</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">Peak Frequency:</span>
-                <span className="font-bold text-slate-900">10 – 12 Minutes</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">Off-Peak Frequency:</span>
-                <span className="font-bold text-slate-900">15 Minutes</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">Total Route Travel Time:</span>
-                <span className="font-bold text-slate-900">~34 Minutes</span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-slate-500">JMRC Customer Helpline:</span>
-                <a
-                  href="tel:01412822171"
-                  className="font-bold text-rose-600 hover:underline"
-                >
-                  0141-2822171
-                </a>
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-slate-50 p-2.5 border border-slate-200 text-slate-500 text-[10px]">
-              <span className="font-bold text-slate-700">Official Source: </span>
-              Jaipur Metro Rail Corporation Ltd. (JMRC). Timings verified against gazetted passenger schedule.
-            </div>
+        {/* Loading Spinner */}
+        {loading ? (
+          <div style={{ padding: "48px 24px", textAlign: "center", background: "#ffffff", border: "1px solid var(--m-cream-border)", borderRadius: "var(--m-radius-lg)" }}>
+            <div className="metro-status-dot" style={{ width: "12px", height: "12px", margin: "0 auto 12px", background: "var(--m-green-light)" }} />
+            <strong style={{ display: "block", color: "var(--m-green-deep)", fontSize: "14px" }}>
+              Loading Jaipur Metro Pink Line Guide...
+            </strong>
+            <p style={{ margin: "4px 0 0", color: "var(--m-text-muted)", fontSize: "12px" }}>
+              Retrieving stations, fare slabs, and operating schedules
+            </p>
           </div>
+        ) : (
+          <>
+            {/* TAB 1: PLAN JOURNEY (DUAL COLUMN: MAP + TRIP PLANNER) */}
+            {activeTab === "journey" && (
+              <div className="metro-content-grid">
+                {/* Left Column: Interactive Map */}
+                <section className="metro-panel metro-map-panel" aria-label="Metro Route Map">
+                  <div className="metro-panel-header">
+                    <div className="metro-panel-title-group">
+                      <h3>Interactive Corridor Map</h3>
+                      <p className="metro-panel-description">
+                        Click any station marker to view details or set as origin / destination.
+                      </p>
+                    </div>
+                    <span className="metro-badge">Pink Line</span>
+                  </div>
+
+                  {stations.length > 0 ? (
+                    <MetroMap
+                      stations={stations}
+                      selectedStation={selectedStation}
+                      onSelectStation={handleSelectStation}
+                      onSetFromStation={handleSetFromStation}
+                      onSetToStation={handleSetToStation}
+                      journeyStations={journeyStations}
+                    />
+                  ) : (
+                    <div style={{ padding: "30px", textAlign: "center", color: "var(--m-text-muted)", background: "var(--m-cream-soft)", borderRadius: "var(--m-radius-md)" }}>
+                      Corridor map is loading...
+                    </div>
+                  )}
+                </section>
+
+                {/* Right Column: Journey Planner */}
+                <section className="metro-panel metro-journey-panel" aria-label="Metro Trip Planner">
+                  <div className="metro-panel-header">
+                    <div className="metro-panel-title-group">
+                      <h3>Trip Planner</h3>
+                      <p className="metro-panel-description">
+                        Select boarding &amp; destination stations for fares, stops and timings.
+                      </p>
+                    </div>
+                    <span className="metro-badge" style={{ background: "var(--m-green-tint)", borderColor: "var(--m-green-border)", color: "var(--m-green-deep)" }}>
+                      JMRC Slabs
+                    </span>
+                  </div>
+
+                  {stations.length > 0 ? (
+                    <MetroJourney
+                      stations={stations}
+                      fromStation={fromStation}
+                      toStation={toStation}
+                      setFromStation={setFromStation}
+                      setToStation={setToStation}
+                      onJourneyCalculated={setJourneyStations}
+                    />
+                  ) : (
+                    <div style={{ padding: "30px", textAlign: "center", color: "var(--m-text-muted)", background: "var(--m-cream-soft)", borderRadius: "var(--m-radius-md)" }}>
+                      Station selector is loading...
+                    </div>
+                  )}
+                </section>
+              </div>
+            )}
+
+            {/* TAB 2: EXPLORE STATIONS */}
+            {activeTab === "stations" && (
+              <section className="metro-panel" aria-label="All Metro Stations">
+                <div className="metro-panel-header">
+                  <div className="metro-panel-title-group">
+                    <h2>Explore All 11 Stations</h2>
+                    <p className="metro-panel-description">
+                      Search by station name, structure, interchange, and view first/last train timetables.
+                    </p>
+                  </div>
+                  <span className="metro-badge">Mansarovar ↔ Badi Chaupar</span>
+                </div>
+
+                {stations.length > 0 ? (
+                  <MetroSearch
+                    stations={stations}
+                    selectedStation={selectedStation}
+                    onSelectStation={handleSelectStation}
+                    onSetFromStation={handleSetFromStation}
+                    onSetToStation={handleSetToStation}
+                  />
+                ) : (
+                  <div style={{ padding: "30px", textAlign: "center", color: "var(--m-text-muted)" }}>
+                    Station information is currently unavailable.
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* TAB 3: FARES & TIMINGS */}
+            {activeTab === "fares" && (
+              <div className="metro-content-grid">
+                {/* Left Column: Official Fare Slabs */}
+                <section className="metro-panel" aria-label="Metro Fare Slabs">
+                  <div className="metro-panel-header">
+                    <div className="metro-panel-title-group">
+                      <h2>Official JMRC Fare Slabs</h2>
+                      <p className="metro-panel-description">
+                        Token fares and discounted smart card rates across station distances.
+                      </p>
+                    </div>
+                    <span className="metro-badge">10% Off Card</span>
+                  </div>
+
+                  <div className="metro-fare-table-wrap">
+                    <table className="metro-fare-table">
+                      <thead>
+                        <tr>
+                          <th>Journey Tier</th>
+                          <th>Stations</th>
+                          <th>Single Token</th>
+                          <th>Smart Card (10% Off)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          { tier: "Short Distance", stations: "1 – 2 stops", token: "₹6", card: "₹5.40" },
+                          { tier: "Regular Distance", stations: "3 – 5 stops", token: "₹12", card: "₹10.80" },
+                          { tier: "Medium Distance", stations: "6 – 8 stops", token: "₹18", card: "₹16.20" },
+                          { tier: "Long Distance", stations: "9+ stops", token: "₹22", card: "₹19.80" },
+                        ].map((item, idx) => (
+                          <tr key={idx}>
+                            <td>
+                              <strong>{item.tier}</strong>
+                            </td>
+                            <td style={{ color: "var(--m-text-muted)" }}>{item.stations}</td>
+                            <td>
+                              <strong style={{ color: "var(--m-green-deep)", fontSize: "13.5px" }}>
+                                {item.token}
+                              </strong>
+                            </td>
+                            <td>
+                              <strong style={{ color: "#047857", fontSize: "13.5px" }}>
+                                {item.card}
+                              </strong>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="metro-source-disclaimer">
+                    <strong>Smart Card Benefits: </strong>
+                    JMRC Smart Cards save 10% on every ride, bypass token ticket queues, and are rechargeable at all stations.
+                  </div>
+                </section>
+
+                {/* Right Column: Timings & Helpline */}
+                <section className="metro-panel" aria-label="Metro Timings and Helpline">
+                  <div className="metro-panel-header">
+                    <div className="metro-panel-title-group">
+                      <h2>Service Schedule &amp; Help</h2>
+                      <p className="metro-panel-description">
+                        Operating hours, train frequency and official commuter assistance.
+                      </p>
+                    </div>
+                    <span className="metro-badge" style={{ background: "var(--m-green-tint)", borderColor: "var(--m-green-border)", color: "var(--m-green-deep)" }}>
+                      Daily Service
+                    </span>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "var(--m-cream-soft)", borderRadius: "var(--m-radius-sm)" }}>
+                      <div>
+                        <strong style={{ fontSize: "13px", color: "var(--m-green-deep)" }}>First Service</strong>
+                        <p style={{ margin: 0, fontSize: "10.5px", color: "var(--m-text-muted)" }}>Mansarovar / Badi Chaupar</p>
+                      </div>
+                      <strong style={{ fontSize: "14px", color: "var(--m-green-deep)" }}>06:20 AM</strong>
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "var(--m-cream-soft)", borderRadius: "var(--m-radius-sm)" }}>
+                      <div>
+                        <strong style={{ fontSize: "13px", color: "var(--m-green-deep)" }}>Last Service</strong>
+                        <p style={{ margin: 0, fontSize: "10.5px", color: "var(--m-text-muted)" }}>Mansarovar / Badi Chaupar</p>
+                      </div>
+                      <strong style={{ fontSize: "14px", color: "var(--m-green-deep)" }}>09:50 PM</strong>
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "var(--m-cream-soft)", borderRadius: "var(--m-radius-sm)" }}>
+                      <div>
+                        <strong style={{ fontSize: "13px", color: "var(--m-green-deep)" }}>Peak Headway</strong>
+                        <p style={{ margin: 0, fontSize: "10.5px", color: "var(--m-text-muted)" }}>Morning &amp; Evening Rush</p>
+                      </div>
+                      <strong style={{ fontSize: "14px", color: "var(--m-green-deep)" }}>Every 10–12m</strong>
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "var(--m-cream-soft)", borderRadius: "var(--m-radius-sm)" }}>
+                      <div>
+                        <strong style={{ fontSize: "13px", color: "var(--m-green-deep)" }}>Off-Peak Headway</strong>
+                        <p style={{ margin: 0, fontSize: "10.5px", color: "var(--m-text-muted)" }}>Midday &amp; Late Hours</p>
+                      </div>
+                      <strong style={{ fontSize: "14px", color: "var(--m-green-deep)" }}>Every 15m</strong>
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "var(--m-cream-soft)", borderRadius: "var(--m-radius-sm)" }}>
+                      <div>
+                        <strong style={{ fontSize: "13px", color: "var(--m-green-deep)" }}>End-to-End Duration</strong>
+                        <p style={{ margin: 0, fontSize: "10.5px", color: "var(--m-text-muted)" }}>Complete 11-station ride</p>
+                      </div>
+                      <strong style={{ fontSize: "14px", color: "var(--m-green-deep)" }}>~24 mins</strong>
+                    </div>
+                  </div>
+
+                  {/* Official Helpline Card */}
+                  <div className="metro-helpline-card">
+                    <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "#ffffff", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--m-green-deep)", flexShrink: 0, fontSize: "16px" }}>
+                      ☎
+                    </div>
+                    <div>
+                      <span style={{ fontSize: "10px", fontWeight: 850, textTransform: "uppercase", color: "var(--m-green-mid)", display: "block" }}>
+                        JMRC Official Helpline
+                      </span>
+                      <a href="tel:01412822171" className="metro-helpline-phone" style={{ textDecoration: "none" }}>
+                        0141-2822171
+                      </a>
+                      <p style={{ margin: "2px 0 0", fontSize: "10.5px", color: "var(--m-text-muted)" }}>
+                        For lost &amp; found, ticketing, and service updates.
+                      </p>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
+      {/* 5. FREQUENTLY ASKED QUESTIONS (FAQ) */}
+      <section className="metro-panel" style={{ marginTop: "24px" }} aria-label="Frequently Asked Questions">
+        <div className="metro-panel-header">
+          <div className="metro-panel-title-group">
+            <h2>Frequently Asked Questions (FAQ)</h2>
+            <p className="metro-panel-description">
+              Verified transit facts, schedules, and fare rules for Jaipur Metro (JMRC Pink Line).
+            </p>
+          </div>
+          <span className="metro-badge">JMRC Guide</span>
         </div>
-      )}
-    </>
-  )}
-</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "12px" }}>
+          {[
+            {
+              q: "What are the operating timings of Jaipur Metro Pink Line?",
+              a: "Jaipur Metro operates daily from 06:20 AM to 09:50 PM. Peak frequency is every 10–12 minutes, and off-peak frequency is every 15 minutes between Mansarovar and Badi Chaupar."
+            },
+            {
+              q: "How many stations are there on the Jaipur Metro Pink Line?",
+              a: "The Jaipur Metro Pink Line consists of 11 stations over 11.97 km: Mansarovar, New Aatish Market, Vivek Vihar, Shyam Nagar, Ram Nagar, Civil Lines, Railway Station, Sindhi Camp, Chandpole, Chhoti Chaupar, and Badi Chaupar (8 elevated and 3 underground stations)."
+            },
+            {
+              q: "What is the ticket fare for Jaipur Metro?",
+              a: "Jaipur Metro single token fares range from ₹6 for 1–2 stations, ₹12 for 3–5 stations, ₹18 for 6–8 stations, up to ₹22 for 9 or more stations. JMRC Smart Card users receive an automatic 10% discount on every journey."
+            },
+            {
+              q: "Where can I interchange between Jaipur Metro, Indian Railways, and Bus Stand?",
+              a: "Railway Station metro station provides direct access to Jaipur Junction Railway Station, while Sindhi Camp metro station connects directly to Sindhi Camp Central Bus Stand."
+            },
+            {
+              q: "How long does it take to travel the entire Jaipur Metro Pink Line?",
+              a: "The end-to-end journey from Mansarovar to Badi Chaupar covers 11.97 km and takes approximately 24 to 34 minutes."
+            },
+            {
+              q: "What is the Jaipur Metro route between Mansarovar, Railway Station, and Chandpole?",
+              a: "The Jaipur Metro Pink Line connects Mansarovar directly to Railway Station (Jaipur Junction) and Chandpole in approximately 18–20 minutes, serving major commercial, residential, and transit hubs across Jaipur with trains every 10–15 minutes."
+            },
+            {
+              q: "How can I find the nearest Jaipur Metro station and plan my journey?",
+              a: "Use the Jaipur Metro Route Planner on Jaipur Bus Live to select any boarding station across all 11 Pink Line stations from Mansarovar to Badi Chaupar. View station details, interchanges with Indian Railways or Sindhi Camp bus stand, journey durations, and token or smart card fares."
+            }
+          ].map((item, idx) => (
+            <details
+              key={idx}
+              open={idx === 0}
+              style={{
+                background: "var(--m-cream-soft)",
+                border: "1px solid var(--m-cream-border)",
+                borderRadius: "var(--m-radius-md)",
+                padding: "12px 16px"
+              }}
+            >
+              <summary
+                style={{
+                  fontWeight: 800,
+                  fontSize: "13px",
+                  color: "var(--m-green-deep)",
+                  cursor: "pointer",
+                  userSelect: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  minHeight: "44px"
+                }}
+              >
+                {item.q}
+              </summary>
+              <p
+                style={{
+                  margin: "8px 0 0",
+                  fontSize: "12px",
+                  lineHeight: "1.6",
+                  color: "var(--m-text-secondary)"
+                }}
+              >
+                {item.a}
+              </p>
+            </details>
+          ))}
+        </div>
+      </section>
+
+      {/* 6. FOOTER CALL TO ACTION */}
+      <section className="metro-footer-cta">
+        <div>
+          <h2>Connecting Jaipur with Bus &amp; Metro</h2>
+          <p>
+            Jaipur Metro and JCTSL city buses provide integrated public transportation across the Pink City. Switch seamlessly between transit options.
+          </p>
+        </div>
+        {typeof onBackToBus === "function" && (
+          <button
+            type="button"
+            className="metro-btn-primary"
+            onClick={onBackToBus}
+            style={{ flexShrink: 0 }}
+          >
+            <span>Live Bus Tracking</span>
+            <span aria-hidden="true">→</span>
+          </button>
+        )}
+      </section>
+
+      {/* 6. BOTTOM BRANDING & COPYRIGHT */}
+      <footer className="metro-footer-bar">
+        <span>© 2026 Jaipur Bus Live (JBL) · Jaipur Metro Guide (JMRC)</span>
+        <span>Mansarovar ↔ Badi Chaupar · 11 Stations · East-West Transit Corridor</span>
+      </footer>
+    </main>
   );
 }
-

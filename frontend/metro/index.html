@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta name="google-adsense-account" content="ca-pub-9794253080735375">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Performance Resource Hints -->
+    <link rel="preconnect" href="https://jaipur-bus-live-5nvg.vercel.app" crossorigin />
+    <link rel="dns-prefetch" href="https://jaipur-bus-live-5nvg.vercel.app" />
+    <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin />
+    <link rel="dns-prefetch" href="https://tile.openstreetmap.org" />
+
+    <!-- Preload Critical LCP Hero Image for Instant Frame-1 Paint -->
+    <link rel="preload" href="/assets/metro/jaipur-metro-guide-hero-mobile.webp" as="image" type="image/webp" fetchpriority="high" media="(max-width: 600px)" />
+    <link rel="preload" href="/assets/metro/jaipur-metro-guide-hero.webp" as="image" type="image/webp" fetchpriority="high" media="(min-width: 601px)" />
+
+    <!-- Google Analytics & Google AdSense (Deferred to eliminate render blocking and boost mobile CWV) -->
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      function initThirdPartyServices() {
+        if (window.__thirdPartyLoaded) return;
+        window.__thirdPartyLoaded = true;
+
+        // Google Analytics 4
+        var gaScript = document.createElement('script');
+        gaScript.async = true;
+        gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-Z0VP0E0JG2';
+        document.head.appendChild(gaScript);
+        gtag('config', 'G-Z0VP0E0JG2');
+
+        // Google AdSense (ca-pub-9794253080735375)
+        var adsScript = document.createElement('script');
+        adsScript.async = true;
+        adsScript.crossOrigin = 'anonymous';
+        adsScript.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9794253080735375';
+        document.head.appendChild(adsScript);
+      }
+
+      ['scroll', 'keydown', 'touchstart', 'click', 'pointerdown'].forEach(function(evt) {
+        window.addEventListener(evt, initThirdPartyServices, { once: true, passive: true });
+      });
+
+      if (document.readyState === 'complete') {
+        setTimeout(initThirdPartyServices, 5500);
+      } else {
+        window.addEventListener('load', function() {
+          if ('requestIdleCallback' in window) {
+            requestIdleCallback(function() { setTimeout(initThirdPartyServices, 5000); });
+          } else {
+            setTimeout(initThirdPartyServices, 5500);
+          }
+        });
+      }
+    </script>
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://jaipur-bus-live.web.app/metro" />
+    <title>Jaipur Metro Route Map, Fare &amp; Timings | Jaipur Bus Live</title>
+
+    <meta
+      name="description"
+      content="Explore Jaipur Metro routes, Pink Line stations, fares, timings and an easy journey planner. Find stations and travel across Jaipur with Jaipur Bus Live."
+    />
+
+    <meta
+      name="keywords"
+      content="Jaipur Metro route map, Jaipur Metro timings today, Jaipur Metro ticket price, Jaipur Metro fare, Jaipur Metro station list, Jaipur Metro Pink Line, Jaipur Metro first and last train timings, Jaipur Metro route planner, Jaipur Metro nearest station, Mansarovar to Badi Chaupar, Chandpole, Jaipur Metro app, Jaipur Bus Live"
+    />
+
+    <meta name="author" content="Gaurav" />
+    <meta name="robots" content="index, follow" />
+    <meta name="googlebot" content="index, follow" />
+
+    <!-- Favicon & App Icon -->
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <meta name="theme-color" content="#fce7f3" />
+
+    <!-- Open Graph Metadata -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Jaipur Bus Live" />
+    <meta property="og:locale" content="en_IN" />
+    <meta
+      property="og:title"
+      content="Jaipur Metro Route Map, Fare &amp; Timings | Jaipur Bus Live"
+    />
+    <meta
+      property="og:description"
+      content="Explore Jaipur Metro routes, Pink Line stations, fares, timings and an easy journey planner. Find stations and travel across Jaipur with Jaipur Bus Live."
+    />
+    <meta property="og:url" content="https://jaipur-bus-live.web.app/metro" />
+    <meta
+      property="og:image"
+      content="https://jaipur-bus-live.web.app/assets/metro/jaipur-metro-guide-hero.jpg"
+    />
+    <meta
+      property="og:image:alt"
+      content="Jaipur Metro Pink Line route map, stations, timings and journey planner on Jaipur Bus Live"
+    />
+
+    <!-- Twitter / X Metadata -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="Jaipur Metro Route Map, Fare &amp; Timings | Jaipur Bus Live"
+    />
+    <meta
+      name="twitter:description"
+      content="Explore Jaipur Metro routes, Pink Line stations, fares, timings and an easy journey planner. Find stations and travel across Jaipur with Jaipur Bus Live."
+    />
+    <meta
+      name="twitter:image"
+      content="https://jaipur-bus-live.web.app/assets/metro/jaipur-metro-guide-hero.jpg"
+    />
+    <meta
+      name="twitter:image:alt"
+      content="Jaipur Metro Pink Line route map, stations, timings and journey planner on Jaipur Bus Live"
+    />
+
+    <!-- Website & Metro Structured Data (WebPage + FAQPage) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://jaipur-bus-live.web.app/#website",
+            "name": "Jaipur Bus Live",
+            "alternateName": "JBL",
+            "url": "https://jaipur-bus-live.web.app/",
+            "description": "Jaipur public transport information, including JCTSL bus tracking, routes and Jaipur Metro information."
+          },
+          {
+            "@type": "WebPage",
+            "@id": "https://jaipur-bus-live.web.app/metro#webpage",
+            "url": "https://jaipur-bus-live.web.app/metro",
+            "name": "Jaipur Metro Route Map, Fare & Timings | Jaipur Bus Live",
+            "description": "Explore Jaipur Metro routes, Pink Line stations, fares, timings and an easy journey planner. Find stations and travel across Jaipur with Jaipur Bus Live.",
+            "isPartOf": {
+              "@type": "WebSite",
+              "@id": "https://jaipur-bus-live.web.app/#website"
+            }
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "What are the operating timings of Jaipur Metro Pink Line?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Jaipur Metro operates daily from 06:20 AM to 09:50 PM. Peak frequency is every 10–12 minutes, and off-peak frequency is every 15 minutes between Mansarovar and Badi Chaupar."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How many stations are there on the Jaipur Metro Pink Line?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "The Jaipur Metro Pink Line consists of 11 stations over 11.97 km: Mansarovar, New Aatish Market, Vivek Vihar, Shyam Nagar, Ram Nagar, Civil Lines, Railway Station, Sindhi Camp, Chandpole, Chhoti Chaupar, and Badi Chaupar (8 elevated and 3 underground stations)."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What is the ticket fare for Jaipur Metro?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Jaipur Metro single token fares range from ₹6 for 1–2 stations, ₹12 for 3–5 stations, ₹18 for 6–8 stations, up to ₹22 for 9 or more stations. JMRC Smart Card users receive an automatic 10% discount on every journey."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Where can I interchange between Jaipur Metro, Indian Railways, and Bus Stand?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Railway Station metro station provides direct access to Jaipur Junction Railway Station, while Sindhi Camp metro station connects directly to Sindhi Camp Central Bus Stand."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How long does it take to travel the entire Jaipur Metro Pink Line?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "The end-to-end journey from Mansarovar to Badi Chaupar covers 11.97 km and takes approximately 24 to 34 minutes."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+
+    <meta name="application-name" content="Jaipur Bus Live" />
+    <meta name="apple-mobile-web-app-title" content="Jaipur Bus Live" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+    <style>
+      :root {
+        --jbl-cream: #faf8f3;
+        --jbl-pink: #e11d48;
+        --m-cream: #faf8f3;
+        --m-cream-soft: #f4efe4;
+        --m-cream-card: #ffffff;
+        --m-cream-border: #e6dfd1;
+        --m-green: #064e3b;
+        --m-green-deep: #022c22;
+        --m-green-mid: #065f46;
+        --m-green-tint: #ecfdf5;
+        --m-green-border: #a7f3d0;
+        --m-pink: #e11d48;
+        --m-pink-deep: #be185d;
+        --m-text-primary: #0d2822;
+        --m-text-secondary: #3b5049;
+        --m-text-muted: #334a43;
+        --m-radius-sm: 10px;
+        --m-radius-md: 16px;
+        --m-radius-lg: 22px;
+        --m-radius-xl: 30px;
+      }
+      *, *::before, *::after {
+        box-sizing: border-box;
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        background-color: #faf8f3;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        color: #0f172a;
+        -webkit-font-smoothing: antialiased;
+      }
+      #root {
+        min-height: 100vh;
+        background-color: #faf8f3;
+      }
+      .metro-premium {
+        width: 100%;
+        min-height: 100vh;
+        background-color: #faf8f3;
+        color: #0d2822;
+        padding: 16px 16px 48px;
+        line-height: 1.5;
+      }
+      .metro-premium .metro-topbar {
+        max-width: 1280px;
+        margin: 0 auto 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 10px 16px;
+        background: #ffffff;
+        border: 1px solid #e6dfd1;
+        border-radius: 16px;
+      }
+      .metro-premium .metro-brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .metro-premium .metro-brand-mark {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #022c22 0%, #064e3b 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #ffffff;
+        flex-shrink: 0;
+      }
+      .metro-premium .metro-brand-text h1 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 850;
+        color: #022c22;
+        line-height: 1.2;
+      }
+      .metro-premium .metro-brand-subtitle {
+        margin: 0;
+        font-size: 11px;
+        font-weight: 700;
+        color: #9f1239;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .metro-premium .metro-topbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .metro-premium .metro-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: #ecfdf5;
+        border: 1px solid #a7f3d0;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        color: #065f46;
+      }
+      .metro-premium .metro-status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #10b981;
+      }
+      .metro-premium .metro-back-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 44px;
+        padding: 10px 16px;
+        background: #ffffff;
+        border: 1px solid #e6dfd1;
+        border-radius: 12px;
+        font-size: 12.5px;
+        font-weight: 750;
+        color: #064e3b;
+        text-decoration: none;
+      }
+      .metro-hero-static {
+        max-width: 1280px;
+        margin: 0 auto 24px;
+        height: 380px;
+        border-radius: 22px;
+        overflow: hidden;
+        background: #02281e;
+        position: relative;
+      }
+      .metro-hero-img-static {
+        width: 100%;
+        height: 100%;
+        display: block;
+        object-fit: cover;
+        object-position: center 12%;
+      }
+      .metro-premium .metro-stats {
+        max-width: 1280px;
+        margin: 0 auto 32px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+      }
+      .metro-premium .metro-stat-card {
+        background: #ffffff;
+        border: 1px solid #e6dfd1;
+        border-radius: 16px;
+        padding: 16px 18px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .metro-premium .metro-stat-value {
+        margin: 0;
+        font-size: clamp(17px, 1.8vw, 22px);
+        font-weight: 900;
+        color: #022c22;
+        line-height: 1.15;
+      }
+      .metro-premium .metro-stat-label {
+        margin: 2px 0 0;
+        font-size: 11px;
+        font-weight: 700;
+        color: #334a43;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      @media (max-width: 960px) {
+        .metro-hero-static { height: 310px; }
+        .metro-premium .metro-stats { grid-template-columns: repeat(2, 1fr); }
+      }
+      @media (max-width: 600px) {
+        .metro-premium { padding: 12px 10px 36px; }
+        .metro-premium .metro-topbar { padding: 8px 12px; margin-bottom: 14px; }
+        .metro-premium .metro-topbar-actions { width: 100%; justify-content: space-between; }
+        .metro-hero-static { height: 250px; border-radius: 16px; margin-bottom: 18px; }
+        .metro-premium .metro-stats { grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 22px; }
+        .metro-premium .metro-stat-card { padding: 12px 10px; gap: 8px; }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="root">
+      <!-- Critical Above-The-Fold Metro App Shell (Hydrates seamlessly with 0 CLS) -->
+      <div class="flex flex-col min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-rose-100 selection:text-rose-900 overflow-x-hidden">
+        <div class="w-full flex-1">
+          <main class="metro-premium" aria-label="Jaipur Metro Guide">
+            <header class="metro-topbar">
+              <div class="metro-brand">
+                <div class="metro-brand-mark" aria-hidden="true">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="3" width="16" height="16" rx="3" />
+                    <path d="M4 11h16" />
+                    <path d="M12 3v8" />
+                    <path d="m8 19-2 3" />
+                    <path d="m16 19 2 3" />
+                    <circle cx="8" cy="15" r="1" fill="currentColor" />
+                    <circle cx="16" cy="15" r="1" fill="currentColor" />
+                  </svg>
+                </div>
+                <div class="metro-brand-text">
+                  <h1>Jaipur Metro Guide</h1>
+                  <p class="metro-brand-subtitle">
+                    <span>●</span> Pink Line · Phase 1A &amp; 1B
+                  </p>
+                </div>
+              </div>
+              <div class="metro-topbar-actions">
+                <div class="metro-status-pill" title="JMRC Operating Status">
+                  <span class="metro-status-dot"></span>
+                  <span>Operational · 06:20 – 21:50</span>
+                </div>
+                <a href="/" class="metro-back-button" aria-label="Return to Jaipur Bus Tracking">
+                  <span>←</span>
+                  <span>Bus Tracking</span>
+                </a>
+              </div>
+            </header>
+
+            <section class="metro-hero metro-hero-static" aria-label="Jaipur Metro Guide">
+              <picture class="metro-hero-picture">
+                <source
+                  media="(max-width: 600px)"
+                  type="image/webp"
+                  srcset="/assets/metro/jaipur-metro-guide-hero-mobile.webp 480w"
+                  sizes="(max-width: 600px) 480px"
+                />
+                <source
+                  media="(max-width: 600px)"
+                  type="image/jpeg"
+                  srcset="/assets/metro/jaipur-metro-guide-hero-mobile.jpg 480w"
+                  sizes="(max-width: 600px) 480px"
+                />
+                <source
+                  type="image/webp"
+                  srcset="/assets/metro/jaipur-metro-guide-hero.webp 800w"
+                  sizes="(max-width: 960px) 800px, 800px"
+                />
+                <source
+                  type="image/jpeg"
+                  srcset="/assets/metro/jaipur-metro-guide-hero.jpg 800w"
+                  sizes="(max-width: 960px) 800px, 800px"
+                />
+                <img
+                  src="/assets/metro/jaipur-metro-guide-hero.webp"
+                  alt="Jaipur Metro Route Map and Pink Line Stations Guide - Jaipur Bus Live"
+                  width="800"
+                  height="800"
+                  fetchpriority="high"
+                  decoding="async"
+                  class="metro-hero-img metro-hero-img-static"
+                />
+              </picture>
+            </section>
+
+            <section class="metro-stats" aria-label="Key corridor metrics">
+              <div class="metro-stat-card">
+                <div>
+                  <div class="metro-stat-value">11.97 km</div>
+                  <div class="metro-stat-label">Corridor Length</div>
+                </div>
+              </div>
+              <div class="metro-stat-card">
+                <div>
+                  <div class="metro-stat-value">11 Stations</div>
+                  <div class="metro-stat-label">8 Elevated · 3 Underground</div>
+                </div>
+              </div>
+              <div class="metro-stat-card">
+                <div>
+                  <div class="metro-stat-value">06:20 – 21:50</div>
+                  <div class="metro-stat-label">Operating Schedule</div>
+                </div>
+              </div>
+              <div class="metro-stat-card">
+                <div>
+                  <div class="metro-stat-value">₹6 – ₹22</div>
+                  <div class="metro-stat-label">Token / 10% Card Rebate</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="metro-main-section">
+              <div class="metro-section-header">
+                <div>
+                  <div class="metro-section-eyebrow">Explore Public Transit</div>
+                  <h2 class="metro-section-title">Pink Line Corridor Tools</h2>
+                </div>
+                <span style="font-size: 11px; font-weight: 750; color: var(--m-text-muted);">
+                  Phase 1A &amp; Phase 1B
+                </span>
+              </div>
+
+              <nav class="metro-nav-tabs" role="tablist" aria-label="Metro guide sections">
+                <button type="button" role="tab" aria-selected="true" class="metro-tab-btn active">
+                  <span aria-hidden="true">⇄</span>
+                  <span>Plan Journey</span>
+                </button>
+                <button type="button" role="tab" aria-selected="false" class="metro-tab-btn">
+                  <span aria-hidden="true">◎</span>
+                  <span>Explore Stations (11)</span>
+                </button>
+                <button type="button" role="tab" aria-selected="false" class="metro-tab-btn">
+                  <span aria-hidden="true">₹</span>
+                  <span>Fares &amp; Timings</span>
+                </button>
+              </nav>
+
+              <div class="metro-content-grid">
+                <!-- Left Column: Interactive Map Panel -->
+                <section class="metro-panel metro-map-panel" aria-label="Metro Route Map">
+                  <div class="metro-panel-header">
+                    <div class="metro-panel-title-group">
+                      <h3>Interactive Corridor Map</h3>
+                      <p class="metro-panel-description">
+                        Click any station marker to view details or set as origin / destination.
+                      </p>
+                    </div>
+                    <span class="metro-badge">Pink Line</span>
+                  </div>
+
+                  <div class="w-full">
+                    <div class="metro-map-container">
+                      <div class="w-full h-full z-0 flex items-center justify-center bg-slate-100/80 text-slate-600 text-xs font-semibold" style="min-height: 100%;">
+                        <span>Jaipur Metro Pink Line Track · Mansarovar ↔ Badi Chaupar</span>
+                      </div>
+                      <div class="metro-map-floating-overlay">
+                        <div class="metro-map-tag">
+                          <span class="metro-status-dot" style="background: #e11d48;"></span>
+                          <span>Pink Line Track (11.97 km)</span>
+                        </div>
+                        <button type="button" class="metro-map-tag" style="cursor: pointer; background: rgba(255,255,255,0.9); min-height: 44px; padding: 10px 14px;" title="Fit complete corridor view">
+                          <span>⛶ Reset View</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="metro-map-legend-bar">
+                      <span class="metro-legend-item">
+                        <span class="metro-legend-chip" style="background: #e11d48;"></span>
+                        Pink Line
+                      </span>
+                      <span class="metro-legend-item">
+                        <span class="metro-legend-chip" style="background: #059669;"></span>
+                        Active Trip
+                      </span>
+                      <span class="metro-legend-item">
+                        <span class="metro-legend-chip" style="background: #e0f2fe; border: 1px solid #0369a1;"></span>
+                        Elevated (8)
+                      </span>
+                      <span class="metro-legend-item">
+                        <span class="metro-legend-chip" style="background: #f3e8ff; border: 1px solid #7e22ce;"></span>
+                        Underground (3)
+                      </span>
+                    </div>
+                  </div>
+                </section>
+
+                <!-- Right Column: Journey Planner Panel -->
+                <section class="metro-panel metro-journey-panel" aria-label="Metro Trip Planner">
+                  <div class="metro-panel-header">
+                    <div class="metro-panel-title-group">
+                      <h3>Trip Planner</h3>
+                      <p class="metro-panel-description">
+                        Select boarding &amp; destination stations for fares, stops and timings.
+                      </p>
+                    </div>
+                    <span class="metro-badge" style="background: var(--m-green-tint); border-color: var(--m-green-border); color: var(--m-green-deep);">
+                      JMRC Slabs
+                    </span>
+                  </div>
+
+                  <div class="w-full">
+                    <div class="metro-station-selector-box">
+                      <div class="metro-input-group">
+                        <div class="metro-input-label">
+                          <span>Boarding Station</span>
+                          <span style="color: #064e3b; font-weight: 800;">Origin</span>
+                        </div>
+                        <button type="button" class="metro-station-trigger">
+                          <div class="metro-station-trigger-content">
+                            <span class="metro-station-indicator from"></span>
+                            <span class="truncate">
+                              <strong style="color: var(--m-green-deep);">Mansarovar</strong>
+                              <span style="color: var(--m-text-secondary); font-size: 11px;">(मानसरोवर)</span>
+                            </span>
+                          </div>
+                          <span style="font-size: 11px; color: var(--m-text-secondary);">▼</span>
+                        </button>
+                      </div>
+
+                      <div class="metro-swap-divider">
+                        <button type="button" class="metro-swap-btn" title="Swap boarding and destination stations">
+                          <span class="metro-swap-icon" style="font-size: 13px;">⇅</span>
+                          <span>Swap Stations</span>
+                        </button>
+                      </div>
+
+                      <div class="metro-input-group">
+                        <div class="metro-input-label">
+                          <span>Destination Station</span>
+                          <span style="color: #9f1239; font-weight: 800;">Alight</span>
+                        </div>
+                        <button type="button" class="metro-station-trigger">
+                          <div class="metro-station-trigger-content">
+                            <span class="metro-station-indicator to"></span>
+                            <span class="truncate">
+                              <strong style="color: var(--m-green-deep);">Badi Chaupar</strong>
+                              <span style="color: var(--m-text-secondary); font-size: 11px;">(बड़ी चौपड़)</span>
+                            </span>
+                          </div>
+                          <span style="font-size: 11px; color: var(--m-text-secondary);">▼</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="metro-result-card" style="margin-top: 14px;">
+                      <div class="metro-result-header">
+                        <div>
+                          <div class="metro-direction-badge">Towards Badi Chaupar (Eastbound)</div>
+                          <div class="metro-route-endpoints">Mansarovar → Badi Chaupar</div>
+                        </div>
+                        <div class="metro-stops-count-badge">11 Stations</div>
+                      </div>
+                      <div class="metro-metrics-grid">
+                        <div class="metro-metric-cell">
+                          <span class="metro-metric-label">Token Fare</span>
+                          <span class="metro-metric-val" style="color: var(--m-green-deep);">₹22</span>
+                        </div>
+                        <div class="metro-metric-cell">
+                          <span class="metro-metric-label">Smart Card (10% Off)</span>
+                          <span class="metro-metric-val" style="color: #047857;">₹19.80</span>
+                        </div>
+                        <div class="metro-metric-cell">
+                          <span class="metro-metric-label">Travel Duration</span>
+                          <span class="metro-metric-val" style="color: var(--m-text-primary);">~24 mins</span>
+                        </div>
+                        <div class="metro-metric-cell">
+                          <span class="metro-metric-label">Corridor Distance</span>
+                          <span class="metro-metric-val" style="color: var(--m-text-primary);">11.97 km</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </section>
+
+            <!-- 5. FREQUENTLY ASKED QUESTIONS (FAQ) -->
+            <section class="metro-panel" style="margin-top: 24px;" aria-label="Frequently Asked Questions">
+              <div class="metro-panel-header">
+                <div class="metro-panel-title-group">
+                  <h2>Frequently Asked Questions (FAQ)</h2>
+                  <p class="metro-panel-description">
+                    Verified transit facts, schedules, and fare rules for Jaipur Metro (JMRC Pink Line).
+                  </p>
+                </div>
+                <span class="metro-badge">JMRC Guide</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 12px;">
+                <details open style="background: var(--m-cream-soft); border: 1px solid var(--m-cream-border); border-radius: var(--m-radius-md); padding: 12px 16px;">
+                  <summary style="font-weight: 800; font-size: 13px; color: var(--m-green-deep); cursor: pointer; user-select: none; display: flex; align-items: center; min-height: 44px;">
+                    What are the operating timings of Jaipur Metro Pink Line?
+                  </summary>
+                  <p style="margin: 8px 0 0; font-size: 12px; line-height: 1.6; color: var(--m-text-secondary);">
+                    Jaipur Metro operates daily from 06:20 AM to 09:50 PM. Peak frequency is every 10–12 minutes, and off-peak frequency is every 15 minutes between Mansarovar and Badi Chaupar.
+                  </p>
+                </details>
+                <details style="background: var(--m-cream-soft); border: 1px solid var(--m-cream-border); border-radius: var(--m-radius-md); padding: 12px 16px;">
+                  <summary style="font-weight: 800; font-size: 13px; color: var(--m-green-deep); cursor: pointer; user-select: none; display: flex; align-items: center; min-height: 44px;">
+                    How many stations are there on the Jaipur Metro Pink Line?
+                  </summary>
+                  <p style="margin: 8px 0 0; font-size: 12px; line-height: 1.6; color: var(--m-text-secondary);">
+                    The Jaipur Metro Pink Line consists of 11 stations over 11.97 km: Mansarovar, New Aatish Market, Vivek Vihar, Shyam Nagar, Ram Nagar, Civil Lines, Railway Station, Sindhi Camp, Chandpole, Chhoti Chaupar, and Badi Chaupar (8 elevated and 3 underground stations).
+                  </p>
+                </details>
+                <details style="background: var(--m-cream-soft); border: 1px solid var(--m-cream-border); border-radius: var(--m-radius-md); padding: 12px 16px;">
+                  <summary style="font-weight: 800; font-size: 13px; color: var(--m-green-deep); cursor: pointer; user-select: none; display: flex; align-items: center; min-height: 44px;">
+                    What is the ticket fare for Jaipur Metro?
+                  </summary>
+                  <p style="margin: 8px 0 0; font-size: 12px; line-height: 1.6; color: var(--m-text-secondary);">
+                    Jaipur Metro single token fares range from ₹6 for 1–2 stations, ₹12 for 3–5 stations, ₹18 for 6–8 stations, up to ₹22 for 9 or more stations. JMRC Smart Card users receive an automatic 10% discount on every journey.
+                  </p>
+                </details>
+                <details style="background: var(--m-cream-soft); border: 1px solid var(--m-cream-border); border-radius: var(--m-radius-md); padding: 12px 16px;">
+                  <summary style="font-weight: 800; font-size: 13px; color: var(--m-green-deep); cursor: pointer; user-select: none; display: flex; align-items: center; min-height: 44px;">
+                    Where can I interchange between Jaipur Metro, Indian Railways, and Bus Stand?
+                  </summary>
+                  <p style="margin: 8px 0 0; font-size: 12px; line-height: 1.6; color: var(--m-text-secondary);">
+                    Railway Station metro station provides direct access to Jaipur Junction Railway Station, while Sindhi Camp metro station connects directly to Sindhi Camp Central Bus Stand.
+                  </p>
+                </details>
+                <details style="background: var(--m-cream-soft); border: 1px solid var(--m-cream-border); border-radius: var(--m-radius-md); padding: 12px 16px;">
+                  <summary style="font-weight: 800; font-size: 13px; color: var(--m-green-deep); cursor: pointer; user-select: none; display: flex; align-items: center; min-height: 44px;">
+                    How long does it take to travel the entire Jaipur Metro Pink Line?
+                  </summary>
+                  <p style="margin: 8px 0 0; font-size: 12px; line-height: 1.6; color: var(--m-text-secondary);">
+                    The end-to-end journey from Mansarovar to Badi Chaupar covers 11.97 km and takes approximately 24 to 34 minutes.
+                  </p>
+                </details>
+                <details style="background: var(--m-cream-soft); border: 1px solid var(--m-cream-border); border-radius: var(--m-radius-md); padding: 12px 16px;">
+                  <summary style="font-weight: 800; font-size: 13px; color: var(--m-green-deep); cursor: pointer; user-select: none; display: flex; align-items: center; min-height: 44px;">
+                    What is the Jaipur Metro route between Mansarovar, Railway Station, and Chandpole?
+                  </summary>
+                  <p style="margin: 8px 0 0; font-size: 12px; line-height: 1.6; color: var(--m-text-secondary);">
+                    The Jaipur Metro Pink Line connects Mansarovar directly to Railway Station (Jaipur Junction) and Chandpole in approximately 18–20 minutes, serving major commercial, residential, and transit hubs across Jaipur with trains every 10–15 minutes.
+                  </p>
+                </details>
+                <details style="background: var(--m-cream-soft); border: 1px solid var(--m-cream-border); border-radius: var(--m-radius-md); padding: 12px 16px;">
+                  <summary style="font-weight: 800; font-size: 13px; color: var(--m-green-deep); cursor: pointer; user-select: none; display: flex; align-items: center; min-height: 44px;">
+                    How can I find the nearest Jaipur Metro station and plan my journey?
+                  </summary>
+                  <p style="margin: 8px 0 0; font-size: 12px; line-height: 1.6; color: var(--m-text-secondary);">
+                    Use the Jaipur Metro Route Planner on Jaipur Bus Live to select any boarding station across all 11 Pink Line stations from Mansarovar to Badi Chaupar. View station details, interchanges with Indian Railways or Sindhi Camp bus stand, journey durations, and token or smart card fares.
+                  </p>
+                </details>
+              </div>
+            </section>
+
+            <!-- 6. FOOTER CALL TO ACTION -->
+            <section class="metro-footer-cta">
+              <div>
+                <h2>Connecting Jaipur with Bus &amp; Metro</h2>
+                <p>
+                  Jaipur Metro and JCTSL city buses provide integrated public transportation across the Pink City. Switch seamlessly between transit options.
+                </p>
+              </div>
+              <a href="/" class="metro-btn-primary" style="flex-shrink: 0; text-decoration: none;">
+                <span>Live Bus Tracking</span>
+                <span aria-hidden="true">→</span>
+              </a>
+            </section>
+
+            <!-- 7. BOTTOM BRANDING & COPYRIGHT -->
+            <footer class="metro-footer-bar">
+              <span>© 2026 Jaipur Bus Live (JBL) · Jaipur Metro Guide (JMRC)</span>
+              <span>Mansarovar ↔ Badi Chaupar · 11 Stations · East-West Transit Corridor</span>
+            </footer>
+          </main>
+        </div>
+
+        <footer class="mt-auto border-t border-pink-200 bg-white text-slate-700">
+          <div class="mx-auto max-w-6xl px-4 py-6 sm:px-6 text-center">
+            <a href="/" class="inline-flex items-center justify-center gap-2 text-base font-black tracking-wide text-slate-900 min-h-[44px]" aria-label="Jaipur Bus Live Home">
+              <span>JAIPUR BUS LIVE (JBL)</span>
+            </a>
+            <p class="mt-1 text-sm text-slate-600">Your City. Your Bus. Your Journey.</p>
+            <nav aria-label="Footer navigation" class="mt-4 flex flex-wrap items-center justify-center gap-2 text-sm">
+              <a href="/" class="px-3.5 py-2.5 min-h-[44px] inline-flex items-center transition-colors hover:text-pink-600" aria-label="Jaipur Bus Live Home page">Home</a>
+              <a href="/metro" class="px-3.5 py-2.5 min-h-[44px] inline-flex items-center transition-colors hover:text-pink-600 font-semibold" aria-label="Jaipur Metro Pink Line Guide">
+                <span>🚇</span>
+                <span class="ml-1">Jaipur Metro Guide</span>
+              </a>
+            </nav>
+            <p class="mt-3 text-sm font-medium text-emerald-700">Jaipur Public Transport Information</p>
+            <p class="mt-2 text-xs text-slate-600">Built with <span class="text-pink-600">♥</span> by <span class="font-black text-slate-900">Gumshuda</span> | Jaipur, Rajasthan</p>
+            <p class="mt-2 border-t border-slate-100 pt-3 text-xs text-slate-600">© 2026 Jaipur Bus Live. All rights reserved.</p>
+          </div>
+        </footer>
+      </div>
+    </div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+

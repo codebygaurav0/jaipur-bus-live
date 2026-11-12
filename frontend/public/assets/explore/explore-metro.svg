@@ -1,0 +1,66 @@
+<svg width="300" height="170" viewBox="0 0 300 170" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="metroSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#bae6fd" />
+      <stop offset="60%" stop-color="#fdf2f8" />
+      <stop offset="100%" stop-color="#f5d0fe" />
+    </linearGradient>
+    <linearGradient id="viaduct" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#94a3b8" />
+      <stop offset="100%" stop-color="#64748b" />
+    </linearGradient>
+  </defs>
+
+  <!-- Sky -->
+  <rect width="300" height="170" fill="url(#metroSky)" />
+
+  <!-- City Skyline -->
+  <rect x="20" y="80" width="30" height="40" fill="#cbd5e1" opacity="0.6" />
+  <rect x="55" y="65" width="25" height="55" fill="#94a3b8" opacity="0.5" />
+  <rect x="210" y="70" width="35" height="50" fill="#cbd5e1" opacity="0.6" />
+  <rect x="250" y="85" width="40" height="35" fill="#94a3b8" opacity="0.5" />
+
+  <!-- Elevated Viaduct Concrete Bridge -->
+  <rect x="0" y="110" width="300" height="16" fill="url(#viaduct)" />
+  <line x1="0" y1="110" x2="300" y2="110" stroke="#f1f5f9" stroke-width="2" />
+  
+  <!-- Viaduct Pillars -->
+  <rect x="40" y="126" width="22" height="44" rx="2" fill="#64748b" />
+  <rect x="140" y="126" width="22" height="44" rx="2" fill="#64748b" />
+  <rect x="240" y="126" width="22" height="44" rx="2" fill="#64748b" />
+
+  <!-- Rails & Catenary -->
+  <line x1="0" y1="108" x2="300" y2="108" stroke="#334155" stroke-width="2" />
+
+  <!-- Modern Jaipur Metro Pink Line Train -->
+  <!-- Train Nose & Body -->
+  <path d="M40 76 h180 c16 0 28 8 36 20 l-4 12 h-212 Z" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" />
+  
+  <!-- Signature Pink Line Stripe -->
+  <path d="M40 92 h205 l-1 6 H40 Z" fill="#e11d48" />
+
+  <!-- Train Front Aerodynamic Windshield -->
+  <path d="M220 80 h18 c8 3 14 10 16 16 h-34 Z" fill="#0f172a" />
+  <path d="M222 82 h14 c6 3 11 8 13 13 h-27 Z" fill="#38bdf8" opacity="0.9" />
+  <line x1="228" y1="84" x2="242" y2="92" stroke="#ffffff" stroke-width="1.5" opacity="0.7" />
+
+  <!-- Passenger Windows -->
+  <rect x="52" y="82" width="22" height="12" rx="2.5" fill="#0f172a" opacity="0.85" />
+  <rect x="80" y="82" width="22" height="12" rx="2.5" fill="#0f172a" opacity="0.85" />
+  <rect x="108" y="82" width="22" height="12" rx="2.5" fill="#0f172a" opacity="0.85" />
+  <rect x="136" y="82" width="22" height="12" rx="2.5" fill="#0f172a" opacity="0.85" />
+  <rect x="164" y="82" width="22" height="12" rx="2.5" fill="#0f172a" opacity="0.85" />
+  <rect x="192" y="82" width="22" height="12" rx="2.5" fill="#0f172a" opacity="0.85" />
+
+  <!-- Metro Door indicator -->
+  <line x1="105" y1="80" x2="105" y2="108" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="2 2" />
+  <line x1="161" y1="80" x2="161" y2="108" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="2 2" />
+
+  <!-- Front Headlights (Bright Yellow-White) -->
+  <circle cx="250" cy="102" r="3" fill="#fef08a" />
+  <circle cx="250" cy="102" r="5.5" fill="#fef08a" opacity="0.4" />
+
+  <!-- JMRC Logo text -->
+  <text x="64" y="103" fill="#e11d48" font-size="6.5" font-family="sans-serif" font-weight="900" letter-spacing="0.5">JAIPUR METRO</text>
+</svg>
+

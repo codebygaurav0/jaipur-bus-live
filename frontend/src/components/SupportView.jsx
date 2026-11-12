@@ -1,8 +1,21 @@
-import React from "react";
-
 export default function SupportView({ onBackToBus }) {
   return (
     <div className="space-y-4 pb-10">
+      {/* 0. NAVIGATION BACK BAR */}
+      {typeof onBackToBus === "function" && (
+        <div className="flex items-center justify-between pb-1">
+          <button
+            type="button"
+            onClick={onBackToBus}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition"
+            aria-label="Return to Jaipur Bus Tracking"
+          >
+            <span>←</span>
+            <span>Bus Tracking</span>
+          </button>
+        </div>
+      )}
+
       {/* 1. SUPPORT JBL 3D HERO CARD */}
       <div className="card-3d p-5 text-center space-y-3">
         {/* Title */}
@@ -106,7 +119,18 @@ export default function SupportView({ onBackToBus }) {
           </div>
         </div>
       </div>
+
+      {typeof onBackToBus === "function" && (
+        <div className="text-center pt-2">
+          <button
+            type="button"
+            onClick={onBackToBus}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition"
+          >
+            <span>🚌 Return to Live Bus Tracking</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
-

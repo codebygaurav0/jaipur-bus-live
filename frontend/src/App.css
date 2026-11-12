@@ -1,22 +1,380 @@
-/* =========================================================
-   JAIPUR BUS LIVE (JBL) - JCTSL OFFICIAL STYLING & TIMELINE
-   MATCHES EXACT JCTSL REFERENCE SCREENSHOTS (100% PRECISION)
-   ========================================================= */
+/* ==========================================================================
+   JAIPUR BUS LIVE (JBL) — SHARED PREMIUM TRANSIT DESIGN SYSTEM
+   Palette: Heritage Cream/Off-White + Deep Forest Green + Jaipur Pink Accents
+   Matches: Jaipur Metro Guide & Emergency SOS Visual Standards
+   Responsive across: 320px, 360px, 390px, 430px, 600px, 768px, 1024px, 1440px+
+   ========================================================================== */
 
-/* Timeline Scrollable Container */
-.timeline-container {
-  position: relative;
-  width: 100%;
-  padding-top: 16px;
-  padding-bottom: 24px;
-  max-height: 640px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  background-color: #ffffff;
-  -webkit-overflow-scrolling: touch;
+:root {
+  /* Design Tokens */
+  --jbl-cream: #faf8f3;
+  --jbl-cream-soft: #f4efe4;
+  --jbl-cream-card: #ffffff;
+  --jbl-cream-border: #e6dfd1;
+  --jbl-cream-border-subtle: #f0ebe0;
+
+  --jbl-green: #064e3b;
+  --jbl-green-deep: #022c22;
+  --jbl-green-mid: #065f46;
+  --jbl-green-light: #0d9488;
+  --jbl-green-tint: #ecfdf5;
+  --jbl-green-border: #a7f3d0;
+
+  --jbl-pink: #e11d48;
+  --jbl-pink-deep: #be185d;
+  --jbl-pink-light: #fb7185;
+  --jbl-pink-tint: #fff1f2;
+  --jbl-pink-border: #fecdd3;
+  --jbl-pink-glow: rgba(225, 29, 72, 0.22);
+
+  --jbl-red: #dc2626;
+  --jbl-red-deep: #b91c1c;
+  --jbl-red-tint: #fef2f2;
+  --jbl-red-border: #fecaca;
+
+  --jbl-amber: #d97706;
+  --jbl-amber-tint: #fffbeb;
+  --jbl-amber-border: #fde68a;
+
+  --jbl-blue: #1d4ed8;
+  --jbl-blue-tint: #eff6ff;
+  --jbl-blue-border: #bfdbfe;
+
+  --jbl-text-primary: #0f172a;
+  --jbl-text-secondary: #334155;
+  --jbl-text-muted: #64748b;
+
+  --jbl-shadow-xs: 0 1px 2px rgba(6, 78, 59, 0.05);
+  --jbl-shadow-sm: 0 2px 6px -1px rgba(6, 78, 59, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03);
+  --jbl-shadow-md: 0 6px 20px -3px rgba(6, 78, 59, 0.08), 0 2px 8px -2px rgba(0, 0, 0, 0.04);
+  --jbl-shadow-lg: 0 16px 36px -6px rgba(6, 78, 59, 0.12), 0 4px 12px -2px rgba(0, 0, 0, 0.04);
+
+  --jbl-radius-sm: 10px;
+  --jbl-radius-md: 16px;
+  --jbl-radius-lg: 20px;
+  --jbl-radius-xl: 26px;
 }
 
-/* Fullscreen Timeline Container matching Screenshot 2 */
+/* Page foundation */
+html {
+  scroll-behavior: smooth;
+  background-color: var(--jbl-cream);
+  color: var(--jbl-text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--jbl-cream);
+  background-image:
+    radial-gradient(ellipse at 88% 4%, rgba(225, 29, 72, 0.035) 0%, transparent 40%),
+    radial-gradient(ellipse at 12% 28%, rgba(6, 78, 59, 0.035) 0%, transparent 45%);
+  color: var(--jbl-text-primary);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+
+::selection {
+  background: var(--jbl-pink-tint);
+  color: var(--jbl-pink-deep);
+}
+
+/* Base form controls */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.16s ease, background 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--jbl-pink);
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   1. PREMIUM CARDS SYSTEM (.card-3d)
+   ========================================================================== */
+.card-3d,
+.card-3d-interactive {
+  background: var(--jbl-cream-card);
+  border: 1px solid var(--jbl-cream-border);
+  border-radius: var(--jbl-radius-lg);
+  box-shadow: var(--jbl-shadow-sm);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.card-3d-interactive {
+  cursor: pointer;
+  user-select: none;
+}
+
+.card-3d-interactive:hover {
+  border-color: var(--jbl-pink-border);
+  box-shadow: var(--jbl-shadow-md);
+  transform: translateY(-2px);
+}
+
+.card-3d-dark {
+  background: linear-gradient(135deg, #065f46 0%, #064e3b 100%);
+  border: 1px solid #064e3b;
+  color: #ffffff;
+  box-shadow: var(--jbl-shadow-md);
+}
+
+.card-3d-sunken {
+  background: var(--jbl-cream-soft);
+  border: 1px solid var(--jbl-cream-border-subtle);
+  border-radius: var(--jbl-radius-md);
+  box-shadow: inset 0 2px 4px rgba(6, 78, 59, 0.03);
+}
+
+.card-3d-emergency {
+  background: linear-gradient(135deg, #ffffff 0%, var(--jbl-pink-tint) 100%);
+  border: 1px solid var(--jbl-pink-border);
+  border-radius: var(--jbl-radius-lg);
+  box-shadow: 0 4px 16px rgba(225, 29, 72, 0.08);
+}
+
+.card-3d-metro {
+  background: linear-gradient(135deg, #ffffff 0%, #fdf2f8 100%);
+  border: 1px solid #fbcfe8;
+  border-radius: var(--jbl-radius-lg);
+  box-shadow: 0 4px 16px rgba(219, 39, 119, 0.08);
+}
+
+/* ==========================================================================
+   2. 3D BUTTONS SYSTEM (.btn-3d)
+   ========================================================================== */
+.btn-3d {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  user-select: none;
+  transition: transform 0.14s ease, box-shadow 0.14s ease, filter 0.14s ease;
+}
+
+.btn-3d:active {
+  transform: translateY(1.5px) !important;
+}
+
+/* Forest Green Button (.btn-3d-dark) */
+.btn-3d-dark {
+  background: linear-gradient(135deg, #065f46 0%, #064e3b 100%);
+  border: 1px solid #022c22;
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(6, 78, 59, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.btn-3d-dark:hover {
+  background: linear-gradient(135deg, #0d9488 0%, #065f46 100%);
+  transform: translateY(-1px);
+}
+
+/* Jaipur Pink Button (.btn-3d-red / Primary Accent) */
+.btn-3d-red {
+  background: linear-gradient(135deg, #f43f5e 0%, #be185d 100%);
+  border: 1px solid #9f1239;
+  color: #ffffff;
+  box-shadow: 0 3px 12px rgba(225, 29, 72, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.btn-3d-red:hover {
+  background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%);
+  transform: translateY(-1px);
+}
+
+/* Emerald Green Button (.btn-3d-emerald / Live Status) */
+.btn-3d-emerald {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border: 1px solid #047857;
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.btn-3d-emerald:hover {
+  background: linear-gradient(135deg, #34d399 0%, #059669 100%);
+  transform: translateY(-1px);
+}
+
+/* Orange Fire Button (.btn-3d-orange) */
+.btn-3d-orange {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  border: 1px solid #c2410c;
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(249, 115, 22, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* Metro Pink Button (.btn-3d-metro) */
+.btn-3d-metro {
+  background: linear-gradient(135deg, #ec4899 0%, #be185d 100%);
+  border: 1px solid #9d174d;
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(236, 72, 153, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* Light / White Button (.btn-3d-light) */
+.btn-3d-light {
+  background: #ffffff;
+  border: 1px solid var(--jbl-cream-border);
+  color: var(--jbl-text-primary);
+  box-shadow: 0 2px 6px rgba(6, 78, 59, 0.05), inset 0 1px 0 #ffffff;
+}
+
+.btn-3d-light:hover {
+  border-color: var(--jbl-green-border);
+  color: var(--jbl-green-deep);
+  background: var(--jbl-green-tint);
+}
+
+/* ==========================================================================
+   3. HEADER & TOPBAR (.header-3d)
+   ========================================================================== */
+.header-3d {
+  background: rgba(255, 254, 250, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--jbl-cream-border);
+  box-shadow: var(--jbl-shadow-xs);
+}
+
+.floating-pill-3d {
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--jbl-cream-border);
+  box-shadow: var(--jbl-shadow-md);
+}
+
+/* Quick mode navigation pills */
+.mode-nav-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--jbl-text-secondary);
+  background: #ffffff;
+  border: 1px solid var(--jbl-cream-border);
+  transition: all 0.16s ease;
+  text-decoration: none;
+}
+
+.mode-nav-pill:hover {
+  border-color: var(--jbl-pink-border);
+  color: var(--jbl-pink);
+  background: var(--jbl-pink-tint);
+}
+
+.mode-nav-pill.active {
+  background: var(--jbl-green-deep);
+  border-color: var(--jbl-green-deep);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(2, 44, 34, 0.25);
+}
+
+/* ==========================================================================
+   4. MAP CONTAINER & FLOATING CONTROLS
+   ========================================================================== */
+.map-container-relative {
+  position: relative !important;
+  width: 100% !important;
+  height: 50vh;
+  min-height: 360px;
+  max-height: 600px;
+  border-radius: var(--jbl-radius-lg);
+  border: 1px solid var(--jbl-cream-border);
+  box-shadow: var(--jbl-shadow-md);
+  overflow: hidden;
+  isolation: isolate;
+  background-color: #e9e9df;
+}
+
+@media (min-width: 1024px) {
+  .map-container-relative {
+    height: 56vh;
+    min-height: 480px;
+  }
+}
+
+.map-container-relative .leaflet-container {
+  width: 100% !important;
+  height: 100% !important;
+  font-family: inherit;
+}
+
+/* Floating controls on map */
+.map-btn-bottom-left {
+  position: absolute !important;
+  left: 14px !important;
+  bottom: 14px !important;
+  z-index: 400 !important;
+}
+
+.map-btn-bottom-right {
+  position: absolute !important;
+  right: 14px !important;
+  bottom: 14px !important;
+  z-index: 400 !important;
+}
+
+.map-btn-top-right {
+  position: absolute !important;
+  right: 14px !important;
+  top: 14px !important;
+  z-index: 400 !important;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Selected Bus Floating HUD */
+.map-selected-bus-hud {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  right: 70px;
+  max-width: 420px;
+  z-index: 400;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--jbl-cream-border);
+  border-radius: var(--jbl-radius-md);
+  padding: 12px 14px;
+  box-shadow: var(--jbl-shadow-lg);
+  animation: jbl-fadeIn 0.2s ease;
+}
+
+@keyframes jbl-fadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================================================
+   5. ROUTE TIMELINE (.timeline-full-container)
+   ========================================================================== */
 .timeline-full-container {
   position: relative;
   width: 100%;
@@ -29,40 +387,44 @@
   -webkit-overflow-scrolling: touch;
 }
 
-/* Continuous absolute vertical line running through the entire route */
 .timeline-vertical-line {
   position: absolute;
   left: 28px;
   top: 24px;
   bottom: 24px;
   width: 3px;
-  background-color: #1e293b;
+  background-color: #064e3b !important;
   transform: translateX(-50%);
   z-index: 1;
   pointer-events: none;
 }
 
-/* Stop Row */
 .timeline-stop-item {
-  position: relative;
+  position: relative !important;
   width: 100%;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  padding-left: 56px;
-  padding-right: 16px;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  z-index: 2;
+  min-height: 46px !important;
+  display: flex !important;
+  align-items: center !important;
+  padding-left: 56px !important;
+  padding-right: 14px !important;
+  z-index: 2 !important;
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
 
 .timeline-stop-item:hover {
-  background-color: rgba(241, 245, 249, 0.6);
+  background-color: var(--jbl-pink-tint) !important;
 }
 
-/* Common marker anchor centered on the exact 28px vertical line */
+.timeline-stop-item > span {
+  display: block !important;
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+  color: var(--jbl-text-primary) !important;
+}
+
 .timeline-marker-anchor {
   position: absolute;
   left: 28px;
@@ -72,24 +434,24 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  pointer-events: none;
+  pointer-events: none !important;
 }
 
-/* First stop marker: solid deep navy circle (matches Screenshot 2) */
 .timeline-marker-start {
   width: 20px;
   height: 20px;
   border-radius: 9999px;
-  background-color: #1e293b;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  background-color: var(--jbl-green-deep);
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
 
-/* Intermediate stop marker: deep navy circle with crisp white downward arrow (matches Screenshot 2) */
 .timeline-marker-intermediate {
   width: 20px;
   height: 20px;
   border-radius: 9999px;
-  background-color: #1e293b;
+  background-color: var(--jbl-green-deep);
+  border: 2px solid #ffffff;
   color: #ffffff;
   font-size: 11px;
   font-weight: 900;
@@ -97,387 +459,172 @@
   align-items: center;
   justify-content: center;
   line-height: 1;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
 
-/* Last stop marker: deep navy circle (matches Screenshot 2) */
 .timeline-marker-end {
   width: 20px;
   height: 20px;
   border-radius: 9999px;
-  background-color: #1e293b;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  background-color: var(--jbl-pink);
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
 
-/* Live Bus Row on the timeline */
 .timeline-bus-item {
-  position: relative;
-  width: 100%;
-  min-height: 52px;
-  display: flex;
-  align-items: center;
-  padding-left: 56px;
-  padding-right: 16px;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  margin-top: 2px;
-  margin-bottom: 2px;
-  z-index: 4;
-}
-
-/* Live bus circular badge centered on the same vertical line */
-.timeline-bus-marker {
-  width: 32px;
-  height: 32px;
-  border-radius: 9999px;
-  background-color: #ffffff;
-  border-width: 2.5px;
-  border-style: solid;
-  box-shadow: 0 3px 8px -1px rgba(0, 0, 0, 0.22), inset 0 1px 0 #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 15px;
-  line-height: 1;
-  transition: transform 0.15s ease;
-}
-
-/* =========================================================
-   PREMIUM 3D DESIGN SYSTEM — JAIPUR BUS LIVE (JBL)
-   Subtle, modern, layered physical depth & elevation
-   ========================================================= */
-
-/* --- 3D SURFACES & CARDS --- */
-.card-3d {
-  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
-  border: 1px solid rgba(226, 232, 240, 0.9);
-  border-radius: 1.25rem;
-  box-shadow: 
-    0 1px 2px rgba(15, 23, 42, 0.04),
-    0 6px 16px -3px rgba(15, 23, 42, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95);
-  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.card-3d-interactive {
-  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
-  border: 1px solid rgba(226, 232, 240, 0.9);
-  border-radius: 1.25rem;
-  box-shadow: 
-    0 1px 2px rgba(15, 23, 42, 0.04),
-    0 4px 14px -2px rgba(15, 23, 42, 0.07),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95);
-  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.18s ease;
-  cursor: pointer;
-}
-
-.card-3d-interactive:hover {
-  transform: translateY(-2px);
-  box-shadow: 
-    0 2px 4px rgba(15, 23, 42, 0.04),
-    0 10px 24px -4px rgba(15, 23, 42, 0.13),
-    inset 0 1px 0 #ffffff;
-  border-color: #cbd5e1;
-}
-
-.card-3d-interactive:active {
-  transform: translateY(1px);
-  box-shadow: 
-    0 1px 2px rgba(15, 23, 42, 0.04),
-    0 3px 8px rgba(15, 23, 42, 0.08);
-}
-
-/* Dark 3D Surface */
-.card-3d-dark {
-  background: linear-gradient(160deg, #1e293b 0%, #0f172a 100%);
-  border: 1px solid rgba(51, 65, 85, 0.85);
-  border-radius: 1.25rem;
-  box-shadow: 
-    0 2px 4px rgba(0, 0, 0, 0.1),
-    0 8px 24px -4px rgba(15, 23, 42, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
-}
-
-/* Emergency Crimson 3D Surface */
-.card-3d-emergency {
-  background: linear-gradient(180deg, #ffffff 0%, #fff1f2 100%);
-  border: 1px solid #fecdd3;
-  border-radius: 1.25rem;
-  box-shadow: 
-    0 1px 2px rgba(225, 29, 72, 0.06),
-    0 6px 18px -3px rgba(225, 29, 72, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95);
-}
-
-/* Metro Rose 3D Surface */
-.card-3d-metro {
-  background: linear-gradient(180deg, #ffffff 0%, #fdf2f8 100%);
-  border: 1px solid #fbcfe8;
-  border-radius: 1.25rem;
-  box-shadow: 
-    0 1px 2px rgba(219, 39, 119, 0.05),
-    0 6px 18px -3px rgba(219, 39, 119, 0.11),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95);
-}
-
-/* Sunken Inset Container (e.g. search bars, trays, inputs) */
-.card-3d-sunken {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  box-shadow: 
-    inset 0 2px 4px rgba(15, 23, 42, 0.05),
-    0 1px 0 rgba(255, 255, 255, 0.85);
-  border-radius: 1rem;
-}
-
-/* --- 3D BUTTON SYSTEM --- */
-.btn-3d {
-  position: relative;
-  user-select: none;
-  font-weight: 800;
-  transition: transform 0.12s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.12s cubic-bezier(0.16, 1, 0.3, 1), filter 0.12s ease;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.btn-3d:active {
-  transform: translateY(2px) !important;
-}
-
-/* Slate Dark 3D Button */
-.btn-3d-dark {
-  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-  border: 1px solid #334155;
-  color: #ffffff;
-  box-shadow: 
-    0 3px 0 0 #020617,
-    0 5px 12px rgba(15, 23, 42, 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
-}
-.btn-3d-dark:hover {
-  transform: translateY(-1px);
-  box-shadow: 
-    0 4px 0 0 #020617,
-    0 7px 16px rgba(15, 23, 42, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22);
-}
-.btn-3d-dark:active {
-  box-shadow: 
-    0 1px 0 0 #020617,
-    0 2px 4px rgba(15, 23, 42, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
-}
-
-/* Crimson Red 3D Button (Emergency 112 / Track) */
-.btn-3d-red {
-  background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
-  border: 1px solid #b91c1c;
-  color: #ffffff;
-  box-shadow: 
-    0 3px 0 0 #991b1b,
-    0 5px 14px rgba(220, 38, 38, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-.btn-3d-red:hover {
-  transform: translateY(-1px);
-  box-shadow: 
-    0 4px 0 0 #991b1b,
-    0 7px 18px rgba(220, 38, 38, 0.38),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
-}
-.btn-3d-red:active {
-  box-shadow: 
-    0 1px 0 0 #991b1b,
-    0 2px 4px rgba(220, 38, 38, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
-}
-
-/* Emerald Green 3D Button (Medical 108 / Live GPS) */
-.btn-3d-emerald {
-  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
-  border: 1px solid #047857;
-  color: #ffffff;
-  box-shadow: 
-    0 3px 0 0 #065f46,
-    0 5px 14px rgba(5, 150, 105, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-.btn-3d-emerald:hover {
-  transform: translateY(-1px);
-  box-shadow: 
-    0 4px 0 0 #065f46,
-    0 7px 18px rgba(5, 150, 105, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
-}
-.btn-3d-emerald:active {
-  box-shadow: 
-    0 1px 0 0 #065f46,
-    0 2px 4px rgba(5, 150, 105, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
-}
-
-/* Orange Fire 3D Button (Fire 101) */
-.btn-3d-orange {
-  background: linear-gradient(180deg, #f97316 0%, #ea580c 100%);
-  border: 1px solid #c2410c;
-  color: #ffffff;
-  box-shadow: 
-    0 3px 0 0 #9a3412,
-    0 5px 14px rgba(234, 88, 12, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-.btn-3d-orange:hover {
-  transform: translateY(-1px);
-  box-shadow: 
-    0 4px 0 0 #9a3412,
-    0 7px 18px rgba(234, 88, 12, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
-}
-.btn-3d-orange:active {
-  box-shadow: 
-    0 1px 0 0 #9a3412,
-    0 2px 4px rgba(234, 88, 12, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
-}
-
-/* Metro Pink 3D Button */
-.btn-3d-metro {
-  background: linear-gradient(180deg, #f43f5e 0%, #e11d48 100%);
-  border: 1px solid #be123c;
-  color: #ffffff;
-  box-shadow: 
-    0 3px 0 0 #9f1239,
-    0 5px 14px rgba(225, 29, 72, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-.btn-3d-metro:hover {
-  transform: translateY(-1px);
-  box-shadow: 
-    0 4px 0 0 #9f1239,
-    0 7px 18px rgba(225, 29, 72, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
-}
-.btn-3d-metro:active {
-  box-shadow: 
-    0 1px 0 0 #9f1239,
-    0 2px 4px rgba(225, 29, 72, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
-}
-
-/* Crisp White / Light 3D Button */
-.btn-3d-light {
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-  border: 1px solid #cbd5e1;
-  color: #0f172a;
-  box-shadow: 
-    0 2.5px 0 0 #94a3b8,
-    0 4px 10px rgba(15, 23, 42, 0.06),
-    inset 0 1px 0 #ffffff;
-}
-.btn-3d-light:hover {
-  transform: translateY(-1px);
-  box-shadow: 
-    0 3.5px 0 0 #94a3b8,
-    0 6px 14px rgba(15, 23, 42, 0.09),
-    inset 0 1px 0 #ffffff;
-  border-color: #94a3b8;
-}
-.btn-3d-light:active {
-  box-shadow: 
-    0 1px 0 0 #94a3b8,
-    0 2px 4px rgba(15, 23, 42, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
-}
-
-/* --- 3D HEADER & FLOATING CONTROLS --- */
-.header-3d {
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border-bottom: 1px solid rgba(226, 232, 240, 0.85);
-  box-shadow: 
-    0 4px 16px -3px rgba(15, 23, 42, 0.06),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.8);
-}
-
-.floating-pill-3d {
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(203, 213, 225, 0.8);
-  box-shadow: 
-    0 4px 14px -1px rgba(15, 23, 42, 0.16),
-    0 2px 6px -1px rgba(15, 23, 42, 0.08),
-    inset 0 1px 0 #ffffff;
-}
-
-.icon-badge-3d {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0.875rem;
-  box-shadow: 
-    0 3px 8px -1px rgba(15, 23, 42, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28);
-  transition: transform 0.15s ease;
-}
-
-.icon-badge-3d:hover {
-  transform: scale(1.05);
-}
-
-/* =========================================================
-   MAP FLOATING BUTTONS & ACTION CONTROLS
-   Strictly positioned relative to the Map Container
-   ========================================================= */
-
-/* Parent map container helper ensuring relative context and Leaflet 100% fill */
-.map-container-relative {
   position: relative !important;
-  width: 100% !important;
-  height: 46vh;
-  min-height: 340px;
+  width: 100%;
+  min-height: 56px !important;
+  display: flex !important;
+  align-items: center !important;
+  padding-left: 56px !important;
+  padding-right: 14px !important;
+  z-index: 4 !important;
 }
 
-.map-container-relative .leaflet-container {
-  width: 100% !important;
-  height: 100% !important;
+.timeline-bus-marker {
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 50% !important;
+  background-color: #059669 !important;
+  border: 2px solid #ffffff !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 14px !important;
 }
 
-/* Floating actions container bar */
-.map-floating-actions {
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: max(16px, env(safe-area-inset-bottom, 16px));
-  z-index: 400;
-  pointer-events: none;
+/* ==========================================================================
+   6. RESPONSIVE UTILITIES & SCREEN BREAKPOINTS
+   ========================================================================== */
+@media (max-width: 640px) {
+  .map-container-relative {
+    border-radius: var(--jbl-radius-md);
+    min-height: 320px;
+  }
+
+  .card-3d,
+  .card-3d-interactive,
+  .card-3d-metro,
+  .card-3d-emergency {
+    border-radius: 16px;
+  }
 }
 
-.map-floating-actions > * {
-  pointer-events: auto;
+@media (min-width: 1024px) {
+  .jbl-desktop-layout {
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: 24px;
+    align-items: start;
+  }
 }
 
-/* Independent floating positioning strictly relative to Map Container */
-.map-btn-bottom-left {
-  position: absolute !important;
-  left: 16px !important;
-  bottom: max(16px, env(safe-area-inset-bottom, 16px)) !important;
-  z-index: 400 !important;
+/* ==========================================================================
+   7. MOCKUP-SPECIFIC UI EXTENSIONS (HERO, TABS, POPULAR ROUTES & HUD)
+   ========================================================================== */
+.jbl-hero-card {
+  background: linear-gradient(135deg, #ffffff 0%, #fff1f2 40%, #ffffff 100%);
+  border: 1px solid #fecdd3;
+  border-radius: 24px;
+  box-shadow: 0 4px 20px -2px rgba(225, 29, 72, 0.08);
 }
 
-.map-btn-bottom-right {
-  position: absolute !important;
-  right: 16px !important;
-  bottom: max(16px, env(safe-area-inset-bottom, 16px)) !important;
-  z-index: 400 !important;
+.jbl-search-tab-btn {
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  transition: all 0.16s ease;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
-/* Override .btn-3d position:relative when used with .absolute or floating classes */
-.btn-3d.absolute,
-.btn-3d.map-btn-bottom-left,
-.btn-3d.map-btn-bottom-right {
-  position: absolute !important;
+.jbl-search-tab-btn.active {
+  background: #e11d48;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(225, 29, 72, 0.35);
+  border: 1px solid #be185d;
 }
 
+.jbl-search-tab-btn.inactive {
+  background: #ffffff;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.jbl-search-tab-btn.inactive:hover {
+  background: #fff1f2;
+  color: #e11d48;
+  border-color: #fecdd3;
+}
+
+.jbl-quick-card {
+  background: #ffffff;
+  border: 1px solid var(--jbl-cream-border);
+  border-radius: 18px;
+  padding: 12px 14px;
+  transition: all 0.18s ease;
+  box-shadow: var(--jbl-shadow-xs);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.jbl-quick-card:hover {
+  border-color: #fecdd3;
+  box-shadow: 0 4px 14px rgba(225, 29, 72, 0.1);
+  transform: translateY(-2px);
+}
+
+.jbl-quick-icon-wrap {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: #fff1f2;
+  color: #e11d48;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  border: 1px solid #fecdd3;
+}
+
+.jbl-route-pill-badge {
+  background: #e11d48;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 3px 8px;
+  border-radius: 8px;
+  letter-spacing: 0.02em;
+}
+
+.jbl-stats-bar-card {
+  background: #ffffff;
+  border: 1px solid var(--jbl-cream-border);
+  border-radius: 18px;
+  padding: 12px 8px;
+  box-shadow: var(--jbl-shadow-xs);
+}
+
+/* Prefers-reduced-motion compliance */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

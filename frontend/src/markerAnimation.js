@@ -1,14 +1,3 @@
-const SUPPORTED_BUS_STATUSES = new Set([
-  "LIVE · MOVING",
-  "LIVE · SLOW",
-  "LIVE · IDLE",
-  "LIVE · STOPPED",
-  "GPS STALE",
-  "GPS UPDATE UNAVAILABLE",
-  "GPS INVALID",
-  "GPS UNCERTAIN",
-]);
-
 export function createMarkerAnimator({
   requestFrame = globalThis.requestAnimationFrame?.bind(globalThis),
   cancelFrame = globalThis.cancelAnimationFrame?.bind(globalThis),
@@ -114,8 +103,24 @@ export function smoothBearingDegrees(previousBearing, nextBearing, factor = 0.5)
 }
 
 export function getBusStatus(bus) {
-  const status = bus?.status || bus?.telemetryStatus;
-  return SUPPORTED_BUS_STATUSES.has(status) ? status : "GPS UPDATE UNAVAILABLE";
+  const rawStatus = bus?.status || bus?.telemetryStatus;
+
+  if (typeof rawStatus !== "string" || !rawStatus.trim()) {
+    return "GPS UPDATE UNAVAILABLE";
+  }
+
+  const normalized = rawStatus.trim().toUpperCase().replace(/[^A-Z]+/g, " ");
+
+  if (normalized.includes("GPS INVALID")) return "GPS INVALID";
+  if (normalized.includes("GPS STALE")) return "GPS STALE";
+  if (normalized.includes("GPS UNCERTAIN")) return "GPS UNCERTAIN";
+  if (normalized.includes("GPS UPDATE UNAVAILABLE")) return "GPS UPDATE UNAVAILABLE";
+  if (normalized.includes("LIVE MOVING")) return "LIVE \u00b7 MOVING";
+  if (normalized.includes("LIVE STOPPED")) return "LIVE \u00b7 STOPPED";
+  if (normalized.includes("LIVE SLOW")) return "LIVE \u00b7 SLOW";
+  if (normalized.includes("LIVE IDLE")) return "LIVE \u00b7 IDLE";
+
+  return "GPS UPDATE UNAVAILABLE";
 }
 
 export function getBusSpeedLabel(bus) {

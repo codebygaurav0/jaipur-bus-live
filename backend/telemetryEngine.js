@@ -102,6 +102,26 @@ class TelemetryEngine {
     if (!Number.isFinite(observedAt)) {
       throw new Error("Telemetry observation clock returned an invalid timestamp");
     }
+    if (rawVehicles.length === 0) {
+      this.vehicleStore.clear();
+      this.observationStore.clear();
+      this.latestSummary = {
+        totalReceived: 0,
+        validGps: 0,
+        liveMoving: 0,
+        liveSlow: 0,
+        liveIdle: 0,
+        liveStopped: 0,
+        gpsStale: 0,
+        gpsInvalid: 0,
+        rejected: 0,
+        lastUpdated: new Date(observedAt).toISOString(),
+      };
+      return {
+        summary: this.latestSummary,
+        vehicles: [],
+      };
+    }
 
     const seenVehicleNumbers = new Set();
     let validGpsCount = 0;

@@ -177,3 +177,16 @@ test("first observation without trustworthy history is not presented as confirme
   assert.equal(bus.previousLatitude, null);
   assert.equal(bus.previousTimestamp, null);
 });
+
+test("a successful empty vehicle response clears old markers and reports a genuine zero", () => {
+  const clock = createClock();
+  const engine = new TelemetryEngine({ now: clock.now });
+  engine.processTelemetry([reading("RJ14TEST10", 26.9, 75.81)]);
+  clock.advance(25_000);
+
+  const empty = engine.processTelemetry([]);
+  assert.deepEqual(empty.vehicles, []);
+  assert.equal(empty.summary.totalReceived, 0);
+  assert.equal(empty.summary.lastUpdated, new Date(clock.now()).toISOString());
+  assert.deepEqual(engine.getLiveVehicles(), []);
+});

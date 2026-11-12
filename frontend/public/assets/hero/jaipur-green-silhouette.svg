@@ -1,0 +1,26 @@
+<svg width="400" height="160" viewBox="0 0 400 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g opacity="0.35">
+    <!-- Jaipur City Wall & Heritage Gates -->
+    <path d="M40 160 V100 H70 V85 H85 V100 H110 V160 Z" fill="#e11d48" />
+    <!-- Chhatri Dome -->
+    <path d="M70 85 Q77 70 85 85 Z" fill="#e11d48" />
+    
+    <!-- Palace Arches & Minarets -->
+    <rect x="130" y="70" width="80" height="90" fill="#e11d48" />
+    <path d="M140 160 V120 Q170 100 200 120 V160 Z" fill="#ffffff" />
+    <!-- Chhatris on roof -->
+    <path d="M135 70 Q145 55 155 70 Z" fill="#e11d48" />
+    <path d="M185 70 Q195 55 205 70 Z" fill="#e11d48" />
+
+    <!-- Hawa Mahal mini facade -->
+    <path d="M230 160 L245 90 H345 L360 160 Z" fill="#e11d48" />
+    <path d="M260 90 L275 50 H315 L330 90 Z" fill="#e11d48" />
+    <path d="M285 50 Q295 35 305 50 Z" fill="#e11d48" />
+    
+    <!-- Trees & Greenery -->
+    <circle cx="25" cy="130" r="18" fill="#059669" opacity="0.5" />
+    <circle cx="120" cy="135" r="14" fill="#059669" opacity="0.5" />
+    <circle cx="375" cy="130" r="22" fill="#059669" opacity="0.5" />
+  </g>
+</svg>
+

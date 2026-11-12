@@ -1,6 +1,8 @@
+
 <!doctype html>
 <html lang="en-IN">
   <head>
+    <meta name="google-adsense-account" content="ca-pub-9794253080735375">
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
@@ -13,6 +15,73 @@
     <meta name="author" content="Jaipur Bus Live" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <link rel="canonical" href="https://jaipur-bus-live.web.app/" />
+
+    <!-- Performance Resource Hints: DNS Prefetch & Preconnect for High-Speed Mobile Loading -->
+    <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin />
+    <link rel="dns-prefetch" href="https://tile.openstreetmap.org" />
+    <link rel="preconnect" href="https://jaipur-bus-live-5nvg.vercel.app" crossorigin />
+    <link rel="dns-prefetch" href="https://jaipur-bus-live-5nvg.vercel.app" />
+
+    <!-- Preload Critical LCP Hero Image for Instant Frame-1 Paint -->
+    <link rel="preload" href="/assets/hero/hero-bus-hawa-mahal.svg" as="image" type="image/svg+xml" fetchpriority="high" />
+    <link rel="preload" href="/assets/metro/jaipur-metro-guide-hero-mobile.webp" as="image" type="image/webp" fetchpriority="high" media="(max-width: 600px)" />
+    <link rel="preload" href="/assets/metro/jaipur-metro-guide-hero.webp" as="image" type="image/webp" fetchpriority="high" media="(min-width: 601px)" />
+
+    <!-- Google Analytics & Google AdSense (Deferred to eliminate render blocking and boost mobile CWV) -->
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      function initThirdPartyServices() {
+        if (window.__thirdPartyLoaded) return;
+        window.__thirdPartyLoaded = true;
+
+        // Google Analytics 4
+        var gaScript = document.createElement('script');
+        gaScript.async = true;
+        gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-Z0VP0E0JG2';
+        document.head.appendChild(gaScript);
+        gtag('config', 'G-Z0VP0E0JG2');
+
+        // Google AdSense (ca-pub-9794253080735375)
+        var adsScript = document.createElement('script');
+        adsScript.async = true;
+        adsScript.crossOrigin = 'anonymous';
+        adsScript.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9794253080735375';
+        document.head.appendChild(adsScript);
+      }
+
+      // Load on first user touch/scroll/click or safely deferred after window load
+      ['scroll', 'keydown', 'touchstart', 'click', 'pointerdown'].forEach(function(evt) {
+        window.addEventListener(evt, initThirdPartyServices, { once: true, passive: true });
+      });
+
+      if (document.readyState === 'complete') {
+        setTimeout(initThirdPartyServices, 3500);
+      } else {
+        window.addEventListener('load', function() {
+          if ('requestIdleCallback' in window) {
+            requestIdleCallback(function() { setTimeout(initThirdPartyServices, 3000); });
+          } else {
+            setTimeout(initThirdPartyServices, 3500);
+          }
+        });
+      }
+    </script>
+
+    <meta
+      name="keywords"
+      content="Jaipur Bus Live, Jaipur bus tracking, JCTSL live bus, JCTSL bus routes, Jaipur city bus, Jaipur bus live location, Jaipur Metro, Jaipur Metro stations, Jaipur Metro routes, Jaipur public transport"
+    />
+
+    <meta name="googlebot" content="index, follow" />
+
+    <!-- Favicon & App Icon -->
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <meta name="theme-color" content="#fce7f3" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
@@ -32,11 +101,6 @@
       name="twitter:description"
       content="Check JCTSL bus tracking, Jaipur bus routes and timings, nearby stops, and Jaipur Metro journey and fare information."
     />
-
-    <!-- Favicon & mobile browser theme -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/favicon.svg" />
-    <meta name="theme-color" content="#0f172a" />
 
     <!-- Structured data: website / organization identity -->
     <script type="application/ld+json">
@@ -60,10 +124,129 @@
         ]
       }
     </script>
-  </head>
+
+
+  <meta name="application-name" content="Jaipur Bus Live" />
+<meta name="apple-mobile-web-app-title" content="Jaipur Bus Live" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <style>
+      :root {
+        --jbl-cream: #faf8f3;
+        --jbl-pink: #e11d48;
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        background-color: #faf8f3;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        color: #0f172a;
+        -webkit-font-smoothing: antialiased;
+      }
+      #root {
+        min-height: 100vh;
+        background-color: #faf8f3;
+      }
+      /* Critical Above-The-Fold App Shell Layout (Render-delay 0ms) */
+      .relative { position: relative; }
+      .absolute { position: absolute; }
+      .inset-0 { inset: 0; }
+      .w-full { width: 100%; }
+      .h-full { height: 100%; }
+      .object-cover { object-fit: cover; }
+      .select-none { user-select: none; }
+      .pointer-events-none { pointer-events: none; }
+      .z-0 { z-index: 0; }
+      .max-w-md { max-width: 28rem; }
+      .mx-auto { margin-left: auto; margin-right: auto; }
+      .rounded-3xl { border-radius: 1.5rem; }
+      .overflow-hidden { overflow: hidden; }
+      .bg-slate-100 { background-color: #f1f5f9; }
+      .map-container-relative { height: 46vh; min-height: 340px; }
+    </style>
+</head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Critical Above-The-Fold Static App Shell (Hydrates seamlessly with 0 CLS) -->
+      <div class="min-h-screen pb-20 bg-[#faf8f3]">
+        <header class="sticky top-0 z-40 flex items-center justify-between border-b border-slate-200/80 bg-white/95 px-4 py-2.5 backdrop-blur-md">
+          <div class="flex items-center gap-2.5">
+            <div class="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-md border border-rose-500/80 bg-gradient-to-tr from-rose-600 to-rose-400">
+              <span class="text-base select-none">🚌</span>
+            </div>
+            <div class="flex flex-col leading-none">
+              <div class="flex items-center gap-1.5">
+                <span class="text-[13px] font-black tracking-tight text-slate-900 font-sans">
+                  JAIPUR BUS LIVE
+                </span>
+                <span class="rounded px-1.5 py-0.5 text-[8.5px] font-black text-white tracking-wider bg-rose-600">
+                  JBL
+                </span>
+              </div>
+              <div class="flex items-center gap-1 mt-0.5">
+                <span class="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span class="text-[9.5px] font-bold tracking-wider text-slate-500 uppercase">
+                  JCTSL LIVE TRACKER
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-center h-11 w-11 min-h-[44px] min-w-[44px] rounded-xl border border-slate-200 bg-white shadow-xs text-red-600">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#dc2626" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+            </svg>
+          </div>
+        </header>
+
+        <div class="mx-auto grid w-full max-w-md grid-cols-3 gap-2 px-4 pt-3 pb-2">
+          <div class="flex items-center justify-center gap-1.5 rounded-xl border border-rose-600 bg-rose-600 px-2 py-3 min-h-[48px] text-sm font-extrabold text-white shadow-sm">
+            <span>🚌</span><span>Bus</span>
+          </div>
+          <div class="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2 py-3 min-h-[48px] text-sm font-extrabold text-slate-700 shadow-sm">
+            <span>🚇</span><span>Metro</span>
+          </div>
+          <div class="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2 py-3 min-h-[48px] text-sm font-extrabold text-slate-700 shadow-sm">
+            <span>🚨</span><span>SOS</span>
+          </div>
+        </div>
+
+        <div class="w-full max-w-md mx-auto px-4 pt-2.5 pb-3">
+          <div class="flex w-full items-center gap-3 rounded-2xl border border-slate-200/90 bg-white px-4 py-3.5 min-h-[52px] shadow-md">
+            <svg width="24" height="24" viewBox="0 0 28 28" fill="none" class="shrink-0">
+              <path d="M6 4v16" stroke="#e11d48" stroke-width="2" stroke-linecap="round" />
+              <path d="M6 5h8l-1.5 3.5L14 12H6z" fill="#e11d48" />
+              <path d="M7 17c3 2 6 3 10 1" stroke="#94a3b8" stroke-width="2" stroke-dasharray="2 3" stroke-linecap="round" />
+              <circle cx="20" cy="18" r="3.5" fill="#e11d48" />
+              <circle cx="20" cy="1.5" r="1.5" fill="white" />
+            </svg>
+            <span class="text-sm font-bold text-slate-600">Route Search with Live Bus</span>
+            <span class="ml-auto text-lg text-slate-400">›</span>
+          </div>
+        </div>
+
+        <div class="relative w-full max-w-md mx-auto">
+          <div class="relative h-[46vh] min-h-[340px] w-full map-container-relative bg-slate-100 rounded-3xl overflow-hidden border border-slate-200/90 shadow-md">
+            <img
+              src="/assets/hero/hero-bus-hawa-mahal.svg"
+              alt="Jaipur Bus Live Transit Map"
+              width="520"
+              height="320"
+              fetchpriority="high"
+              class="absolute inset-0 w-full h-full object-cover select-none"
+            />
+            <div class="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-t from-slate-900/60 via-slate-900/20 to-transparent text-white pointer-events-none">
+              <div class="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/95 border border-rose-200/80 shadow-sm text-xs font-bold text-slate-800 backdrop-blur-xs">
+                <span class="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Connecting Jaipur Live Map...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

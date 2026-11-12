@@ -6,3 +6,7 @@ dist/
 backend/.session.json
 *.log
 .firebase/
+.idea/
+
+.vercel
+.env*

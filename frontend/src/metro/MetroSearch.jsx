@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState, useMemo } from "react";
 
 export default function MetroSearch({
   stations = [],
@@ -8,6 +8,7 @@ export default function MetroSearch({
   onSetToStation,
 }) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterType, setFilterType] = useState("all"); // "all" | "elevated" | "underground" | "interchange"
   const [expandedStationId, setExpandedStationId] = useState(null);
 
   const clean = (s) =>
@@ -16,200 +17,262 @@ export default function MetroSearch({
       .trim()
       .replace(/[^a-z0-9]/g, "");
 
-  const filteredStations = stations.filter((s) => {
-    if (!searchQuery) return true;
-    const q = clean(searchQuery);
-    const qRaw = searchQuery.toLowerCase();
-    const nameMatch = clean(s.name).includes(q) || s.name.toLowerCase().includes(qRaw);
-    const hindiMatch = (s.hindi_name || "").includes(searchQuery);
-    const codeMatch = (s.code || "").toLowerCase().includes(qRaw);
-    return nameMatch || hindiMatch || codeMatch;
-  });
+  const filteredStations = useMemo(() => {
+    return stations.filter((s) => {
+      // 1. Structure / Type filter
+      if (filterType === "elevated" && !s.structure?.toLowerCase().includes("elevated")) {
+        return false;
+      }
+      if (filterType === "underground" && !s.structure?.toLowerCase().includes("underground")) {
+        return false;
+      }
+      if (filterType === "interchange" && (!s.interchange || s.interchange === "None")) {
+        return false;
+      }
+
+      // 2. Query filter
+      if (!searchQuery) return true;
+      const q = clean(searchQuery);
+      const qRaw = searchQuery.toLowerCase().trim();
+      const nameMatch = clean(s.name).includes(q) || s.name.toLowerCase().includes(qRaw);
+      const hindiMatch = (s.hindi_name || "").includes(searchQuery.trim());
+      const codeMatch = (s.code || "").toLowerCase().includes(qRaw);
+      const interchangeMatch = (s.interchange || "").toLowerCase().includes(qRaw);
+      const structureMatch = (s.structure || "").toLowerCase().includes(qRaw);
+      return nameMatch || hindiMatch || codeMatch || interchangeMatch || structureMatch;
+    });
+  }, [stations, searchQuery, filterType]);
+
+  const counts = useMemo(() => {
+    const elevated = stations.filter((s) => s.structure?.toLowerCase().includes("elevated")).length;
+    const underground = stations.filter((s) => s.structure?.toLowerCase().includes("underground")).length;
+    const interchange = stations.filter((s) => s.interchange && s.interchange !== "None").length;
+    return { all: stations.length, elevated, underground, interchange };
+  }, [stations]);
 
   return (
-    <div className="space-y-3">
-      {/* Search Input */}
-      <div className="relative">
+    <div className="w-full">
+      {/* Search Input Bar */}
+      <div className="metro-search-bar-wrap">
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search metro station (e.g. Sindhi Camp, Chandpole, मानसरोवर)"
-          className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-xs font-bold text-black outline-none focus:border-rose-500 card-3d-sunken transition"
+          placeholder="Search by station name (e.g. Sindhi Camp, Chandpole, मानसरोवर)"
+          className="metro-search-input"
+          aria-label="Search Jaipur Metro stations"
         />
         {searchQuery && (
           <button
             type="button"
             onClick={() => setSearchQuery("")}
-            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-black"
+            className="metro-search-clear"
+            aria-label="Clear search"
           >
             ✕
           </button>
         )}
       </div>
 
-      {/* Stations List Header */}
-      <div className="flex items-center justify-between px-1">
-        <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">
-          Pink Line Stations ({filteredStations.length} of {stations.length})
-        </span>
-        <span className="text-[10px] font-bold text-slate-400">
-          Mansarovar ↔ Badi Chaupar
-        </span>
+      {/* Filter Chips Bar */}
+      <div className="metro-filter-chips">
+        <button
+          type="button"
+          onClick={() => setFilterType("all")}
+          className={`metro-filter-chip ${filterType === "all" ? "active" : ""}`}
+        >
+          All Stations ({counts.all})
+        </button>
+        <button
+          type="button"
+          onClick={() => setFilterType("elevated")}
+          className={`metro-filter-chip ${filterType === "elevated" ? "active" : ""}`}
+        >
+          Elevated ({counts.elevated})
+        </button>
+        <button
+          type="button"
+          onClick={() => setFilterType("underground")}
+          className={`metro-filter-chip ${filterType === "underground" ? "active" : ""}`}
+        >
+          Underground ({counts.underground})
+        </button>
+        <button
+          type="button"
+          onClick={() => setFilterType("interchange")}
+          className={`metro-filter-chip ${filterType === "interchange" ? "active" : ""}`}
+        >
+          Interchanges ({counts.interchange})
+        </button>
       </div>
 
-      {/* Stations Cards */}
-      <div className="space-y-2">
-        {filteredStations.map((st) => {
-          const isSelected = selectedStation?.station_id === st.station_id;
-          const isExpanded = expandedStationId === st.station_id;
+      {/* Station Cards Grid */}
+      {filteredStations.length > 0 ? (
+        <div className="metro-station-cards-grid">
+          {filteredStations.map((st) => {
+            const isSelected = selectedStation?.station_id === st.station_id;
+            const isExpanded = expandedStationId === st.station_id;
+            const isUnderground = st.structure?.toLowerCase().includes("underground");
 
-          return (
-            <div
-              key={st.station_id}
-              className={`rounded-2xl border bg-white p-3.5 transition ${
-                isSelected
-                  ? "border-rose-500 ring-2 ring-rose-200 card-3d"
-                  : "border-slate-200 hover:border-slate-300 card-3d-interactive"
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <div
-                  className="cursor-pointer flex-1"
-                  onClick={() => {
-                    if (onSelectStation) onSelectStation(st);
-                    setExpandedStationId(isExpanded ? null : st.station_id);
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-md bg-rose-600 px-2 py-0.5 text-xs font-black text-white shrink-0">
-                      #{st.order}
-                    </span>
-                    <h4 className="font-bold text-xs text-slate-900">{st.name}</h4>
-                    <span className="text-[11px] text-slate-400 font-medium">
-                      {st.hindi_name}
-                    </span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${
-                        st.structure === "Underground"
-                          ? "bg-purple-100 text-purple-700"
-                          : "bg-blue-100 text-blue-700"
-                      }`}
-                    >
-                      {st.structure}
-                    </span>
-                  </div>
-
-                  {st.interchange !== "None" && (
-                    <p className="text-[10px] text-blue-600 font-bold mt-1.5 flex items-center gap-1">
-                      <span>🔄</span> {st.interchange}
-                    </p>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setExpandedStationId(isExpanded ? null : st.station_id)
-                  }
-                  className="text-xs text-slate-400 hover:text-black font-bold px-2 py-1"
-                >
-                  {isExpanded ? "▲" : "▼"}
-                </button>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (onSelectStation) onSelectStation(st);
-                  }}
-                  className="flex-1 rounded-xl py-2 text-[10px] font-black uppercase transition btn-3d btn-3d-light"
-                >
-                  📍 Pin On Map
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (onSetFromStation) onSetFromStation(st);
-                  }}
-                  className="flex-1 rounded-xl py-2 text-[10px] font-black uppercase transition btn-3d btn-3d-dark"
-                >
-                  Set From
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (onSetToStation) onSetToStation(st);
-                  }}
-                  className="flex-1 rounded-xl py-2 text-[10px] font-black uppercase transition btn-3d btn-3d-metro"
-                >
-                  Set To
-                </button>
-              </div>
-
-              {/* Expandable Details Card */}
-              {isExpanded && (
-                <div className="mt-3 pt-3 border-t border-slate-100 bg-slate-50/70 -mx-3.5 -mb-3.5 p-3.5 rounded-b-2xl space-y-2.5">
-                  {/* First / Last Train Schedule */}
-                  <div className="grid grid-cols-2 gap-2 text-[10px]">
-                    <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 card-3d">
-                      <span className="font-black text-rose-600 block uppercase text-[9px]">
-                        Towards Badi Chaupar
-                      </span>
-                      <p className="mt-0.5 text-slate-700">
-                        First: <span className="font-bold">{st.first_train?.towards_badi_chaupar}</span>
-                      </p>
-                      <p className="text-slate-700">
-                        Last: <span className="font-bold">{st.last_train?.towards_badi_chaupar}</span>
-                      </p>
-                    </div>
-
-                    <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 card-3d">
-                      <span className="font-black text-rose-600 block uppercase text-[9px]">
-                        Towards Mansarovar
-                      </span>
-                      <p className="mt-0.5 text-slate-700">
-                        First: <span className="font-bold">{st.first_train?.towards_mansarovar}</span>
-                      </p>
-                      <p className="text-slate-700">
-                        Last: <span className="font-bold">{st.last_train?.towards_mansarovar}</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Facilities */}
-                  {Array.isArray(st.facilities) && st.facilities.length > 0 && (
-                    <div>
-                      <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">
-                        Station Facilities
-                      </span>
-                      <div className="flex flex-wrap gap-1">
-                        {st.facilities.map((fac, i) => (
-                          <span
-                            key={i}
-                            className="rounded-lg bg-white border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600"
-                          >
-                            ✓ {fac}
-                          </span>
-                        ))}
+            return (
+              <div
+                key={st.station_id}
+                className={`metro-station-card ${isSelected ? "selected" : ""}`}
+              >
+                <div className="metro-station-card-top">
+                  <div
+                    style={{ cursor: "pointer", flex: 1 }}
+                    onClick={() => {
+                      if (onSelectStation) onSelectStation(st);
+                      setExpandedStationId(isExpanded ? null : st.station_id);
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span className="metro-station-order-badge">#{st.order}</span>
+                      <div className="metro-station-title-group">
+                        <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 800, color: "var(--m-green-deep)" }}>{st.name}</h3>
+                        <span className="metro-station-hindi">{st.hindi_name}</span>
                       </div>
                     </div>
-                  )}
 
-                  {/* Coordinates */}
-                  <div className="text-[10px] text-slate-400 flex items-center justify-between">
-                    <span>GPS: {st.latitude.toFixed(5)}, {st.longitude.toFixed(5)}</span>
-                    <span>Distance from Start: {st.distance_km} km</span>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
+                      <span className={`metro-structure-pill ${isUnderground ? 'underground' : 'elevated'}`}>
+                        {st.structure}
+                      </span>
+                      {st.interchange && st.interchange !== "None" && (
+                        <span style={{ fontSize: "9.5px", fontWeight: 800, padding: "2px 6px", borderRadius: "4px", background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0" }}>
+                          🔄 {st.interchange}
+                        </span>
+                      )}
+                    </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setExpandedStationId(isExpanded ? null : st.station_id)}
+                    style={{ minHeight: "44px", minWidth: "44px", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "6px", fontSize: "13px", color: "var(--m-text-muted)", fontWeight: 750, background: "transparent", border: "none", cursor: "pointer" }}
+                    aria-label={isExpanded ? "Collapse station details" : "Expand station details"}
+                  >
+                    {isExpanded ? "▲" : "▼"}
+                  </button>
                 </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+
+                {/* Quick Action Buttons */}
+                <div className="metro-station-card-actions">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onSelectStation) onSelectStation(st, true);
+                    }}
+                    className="metro-btn-action"
+                    title="View station on map"
+                  >
+                    📍 View on Map
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onSetFromStation) onSetFromStation(st);
+                    }}
+                    className="metro-btn-action"
+                    style={{ color: "#047857", fontWeight: 850 }}
+                    title="Board here"
+                  >
+                    Board Here
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onSetToStation) onSetToStation(st);
+                    }}
+                    className="metro-btn-action"
+                    style={{ color: "var(--m-pink)", fontWeight: 850 }}
+                    title="Alight here"
+                  >
+                    Alight Here
+                  </button>
+                </div>
+
+                {/* Expandable Details Tray */}
+                {isExpanded && (
+                  <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid var(--m-cream-border-subtle)", fontSize: "11px", color: "var(--m-text-secondary)" }}>
+                    {/* First & Last Train Details */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "10px" }}>
+                      <div style={{ background: "var(--m-cream-soft)", padding: "8px 10px", borderRadius: "8px", border: "1px solid var(--m-cream-border-subtle)" }}>
+                        <span style={{ fontSize: "9.5px", fontWeight: 850, textTransform: "uppercase", color: "var(--m-pink)", display: "block" }}>
+                          To Badi Chaupar
+                        </span>
+                        <div style={{ marginTop: "2px" }}>
+                          First: <strong>{st.first_train?.towards_badi_chaupar || "06:20 AM"}</strong>
+                        </div>
+                        <div>
+                          Last: <strong>{st.last_train?.towards_badi_chaupar || "09:50 PM"}</strong>
+                        </div>
+                      </div>
+
+                      <div style={{ background: "var(--m-cream-soft)", padding: "8px 10px", borderRadius: "8px", border: "1px solid var(--m-cream-border-subtle)" }}>
+                        <span style={{ fontSize: "9.5px", fontWeight: 850, textTransform: "uppercase", color: "var(--m-green-mid)", display: "block" }}>
+                          To Mansarovar
+                        </span>
+                        <div style={{ marginTop: "2px" }}>
+                          First: <strong>{st.first_train?.towards_mansarovar || "06:20 AM"}</strong>
+                        </div>
+                        <div>
+                          Last: <strong>{st.last_train?.towards_mansarovar || "09:50 PM"}</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Facilities Checklist */}
+                    {Array.isArray(st.facilities) && st.facilities.length > 0 && (
+                      <div style={{ marginBottom: "8px" }}>
+                        <span style={{ fontSize: "9.5px", fontWeight: 850, textTransform: "uppercase", color: "var(--m-text-muted)", display: "block", marginBottom: "4px" }}>
+                          Station Facilities
+                        </span>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                          {st.facilities.map((fac, i) => (
+                            <span
+                              key={i}
+                              style={{ background: "#ffffff", border: "1px solid var(--m-cream-border)", padding: "2px 7px", borderRadius: "6px", fontSize: "10px", fontWeight: 650, color: "var(--m-green-deep)" }}
+                            >
+                              ✓ {fac}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Distance from Mansarovar */}
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", color: "var(--m-text-muted)", paddingTop: "4px" }}>
+                      <span>Corridor Distance: {st.distance_km} km</span>
+                      <span>GPS: {st.latitude?.toFixed(4)}, {st.longitude?.toFixed(4)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div style={{ textAlign: "center", padding: "32px 16px", background: "var(--m-cream-soft)", borderRadius: "var(--m-radius-md)", border: "1px solid var(--m-cream-border)", color: "var(--m-text-muted)" }}>
+          <p style={{ margin: "0 0 6px", fontWeight: 800, color: "var(--m-green-deep)", fontSize: "14px" }}>
+            No stations match your search.
+          </p>
+          <p style={{ margin: 0, fontSize: "12px" }}>
+            Try searching for "Sindhi Camp", "Mansarovar", "Chandpole", or clear your filter.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setSearchQuery("");
+              setFilterType("all");
+            }}
+            style={{ marginTop: "12px", padding: "6px 14px", background: "#ffffff", border: "1px solid var(--m-cream-border)", borderRadius: "8px", fontSize: "11px", fontWeight: 800, color: "var(--m-green-deep)" }}
+          >
+            Reset Filters
+          </button>
+        </div>
+      )}
     </div>
   );
 }
-

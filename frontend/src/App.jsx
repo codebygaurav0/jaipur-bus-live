@@ -1,140 +1,23 @@
-import { useEffect, useRef, useState, useMemo } from "react";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
+import { useCallback, useEffect, useRef, useState, useMemo, lazy, Suspense } from "react";
 import "./App.css";
-import MetroHome from "./metro/MetroHome";
-import EmergencyView from "./components/EmergencyView";
-import SupportView from "./components/SupportView";
-import {
-  calculateBearingDegrees,
-  createMarkerAnimator,
-  getBusStatus,
-  getBusStatusClasses,
-  getBusSpeedLabel,
-  getBusStatusStyle,
-  smoothBearingDegrees,
-} from "./markerAnimation";
+import { apiUrl } from "./apiBase";
 
-const BUS_MARKER_STALE_AFTER_MS = 60_000;
-const BUS_MARKER_EXPIRY_MS = 900_000;
-
-function createBusMarkerIcon(
-  status,
-  bearing = 0,
-  vehicleNumber = "",
-  selected = false
-) {
-  const colors = getBusStatusStyle(status);
-  const roundedBearing = Math.round(((bearing % 360) + 360) % 360);
-  const selectionStyle = selected
-    ? "filter: drop-shadow(0 0 6px rgba(14, 165, 233, 0.95)) drop-shadow(0 0 10px rgba(14, 165, 233, 0.6));"
-    : "filter: drop-shadow(0 2px 5px rgba(15, 23, 42, 0.35));";
-
-  return L.divIcon({
-    className: "jbl-bus-marker",
-    html: `
-      <div role="img" aria-label="JCTSL bus ${vehicleNumber}" style="
-        width: 26px;
-        height: 46px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transform: rotate(${roundedBearing}deg);
-        transform-origin: 13px 23px;
-        cursor: pointer;
-        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        ${selectionStyle}
-      ">
-        <svg width="26" height="46" viewBox="0 0 26 46" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <!-- Outer Wheels / Tires (4 tires) -->
-          <rect x="0.5" y="7" width="2.5" height="7" rx="1.2" fill="#1e293b"/>
-          <rect x="23" y="7" width="2.5" height="7" rx="1.2" fill="#1e293b"/>
-          <rect x="0.5" y="30" width="2.5" height="7" rx="1.2" fill="#1e293b"/>
-          <rect x="23" y="30" width="2.5" height="7" rx="1.2" fill="#1e293b"/>
-
-          <!-- Side Mirrors -->
-          <path d="M2.5 9L0.5 7.5" stroke="#334155" stroke-width="1.2" stroke-linecap="round"/>
-          <path d="M23.5 9L25.5 7.5" stroke="#334155" stroke-width="1.2" stroke-linecap="round"/>
-
-          <!-- Main Bus Body (Aerodynamic City Bus Chassis) -->
-          <rect x="2.5" y="2" width="21" height="42" rx="4.5" fill="#f8fafc" stroke="${colors.border || colors.foreground}" stroke-width="1.8"/>
-
-          <!-- Front Dual Headlights (facing forward / North) -->
-          <circle cx="5.5" cy="3.5" r="1.3" fill="#fef08a" stroke="#ca8a04" stroke-width="0.4"/>
-          <circle cx="20.5" cy="3.5" r="1.3" fill="#fef08a" stroke="#ca8a04" stroke-width="0.4"/>
-
-          <!-- Front Windshield (curved panoramic glass) -->
-          <path d="M5 5C5 3.8 8 3.2 13 3.2C18 3.2 21 3.8 21 5V10H5V5Z" fill="#0284c7"/>
-          <!-- Windshield Glare Reflection -->
-          <path d="M7 5C8.8 4.2 11.5 4 13.5 4.3L12.5 8.5H6.5L7 5Z" fill="#bae6fd" fill-opacity="0.7"/>
-
-          <!-- LED Destination / Live Status Header Bar -->
-          <rect x="6.5" y="11" width="13" height="2.6" rx="1" fill="${colors.accent || colors.foreground}"/>
-
-          <!-- Roof Structure & AC Ventilation Unit -->
-          <rect x="5.5" y="14.5" width="15" height="20" rx="1.8" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="0.8"/>
-          <!-- Roof AC Vents -->
-          <rect x="8.5" y="18" width="9" height="7" rx="1.4" fill="#e2e8f0" stroke="#94a3b8" stroke-width="0.6"/>
-          <line x1="10.5" y1="20" x2="15.5" y2="20" stroke="#64748b" stroke-width="0.6"/>
-          <line x1="10.5" y1="21.5" x2="15.5" y2="21.5" stroke="#64748b" stroke-width="0.6"/>
-          <line x1="10.5" y1="23" x2="15.5" y2="23" stroke="#64748b" stroke-width="0.6"/>
-
-          <!-- Side Windows (Left & Right) -->
-          <rect x="3.2" y="15" width="1.8" height="4.5" rx="0.6" fill="#0369a1"/>
-          <rect x="3.2" y="21" width="1.8" height="4.5" rx="0.6" fill="#0369a1"/>
-          <rect x="3.2" y="27" width="1.8" height="4.5" rx="0.6" fill="#0369a1"/>
-          <rect x="21" y="15" width="1.8" height="4.5" rx="0.6" fill="#0369a1"/>
-          <rect x="21" y="21" width="1.8" height="4.5" rx="0.6" fill="#0369a1"/>
-          <rect x="21" y="27" width="1.8" height="4.5" rx="0.6" fill="#0369a1"/>
-
-          <!-- Rear Window -->
-          <rect x="6" y="36.5" width="14" height="3.5" rx="0.8" fill="#0284c7"/>
-
-          <!-- Rear Dual Taillights (Red) -->
-          <rect x="4.5" y="42" width="2.5" height="1.4" rx="0.6" fill="#ef4444"/>
-          <rect x="19" y="42" width="2.5" height="1.4" rx="0.6" fill="#ef4444"/>
-
-          <!-- Selection Center Dot (only if selected) -->
-          ${selected ? `<circle cx="13" cy="23" r="2.5" fill="#0ea5e9" stroke="#ffffff" stroke-width="1"/>` : ""}
-        </svg>
-      </div>
-    `,
-    iconSize: [26, 46],
-    iconAnchor: [13, 23],
-  });
+const LiveBusMap = lazy(() => import("./components/LiveBusMap"));
+const MetroHome = lazy(() => import("./metro/MetroHome"));
+if (typeof window !== "undefined" && window.location.pathname.startsWith("/metro")) {
+  import("./metro/MetroHome");
 }
+const EmergencyView = lazy(() => import("./components/EmergencyView"));
+const SupportView = lazy(() => import("./components/SupportView"));
+const RouteSearchView = lazy(() => import("./components/RouteSearchView"));
+const NearbyStopsView = lazy(() => import("./components/NearbyStopsView"));
+const NearbyBusesView = lazy(() => import("./components/NearbyBusesView"));
+import MetroErrorBoundary from "./metro/MetroErrorBoundary";
+import MetroSuspenseSkeleton from "./metro/MetroSuspenseSkeleton";
+import EmergencyErrorBoundary from "./components/EmergencyErrorBoundary";
 
-function createBusPopupContent({
-  vehicleNumber,
-  routeNumber,
-  status,
-  latitude,
-  longitude,
-  speed,
-  timestamp,
-}) {
-  const colors = getBusStatusStyle(status);
-  const speedText =
-    typeof speed === "number" && Number.isFinite(speed)
-      ? `${speed} km/h`
-      : "Unavailable";
-  const timeText = timestamp
-    ? new Date(timestamp).toLocaleTimeString()
-    : "Observation time unavailable";
-
-  return `
-    <div style="font-family:system-ui,sans-serif;font-size:12px;line-height:1.4;min-width:175px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:6px;">
-        <span style="font-weight:900;font-size:13px;color:#0f172a;">🚌 ${vehicleNumber}</span>
-        <span style="background:${colors.background};color:${colors.foreground};font-size:9px;font-weight:900;padding:2px 6px;border-radius:9999px;">● ${status}</span>
-      </div>
-      <div style="font-size:11px;margin-bottom:3px;">Route: <b>${routeNumber || "JCTSL City Bus"}</b></div>
-      <div style="color:#64748b;font-size:10px;margin-top:2px;">GPS: <b>${latitude.toFixed(5)}, ${longitude.toFixed(5)}</b></div>
-      <div style="color:#64748b;font-size:10px;">Speed: <b>${speedText}</b></div>
-      <div style="color:#64748b;font-size:9px;margin-top:3px;">Last observation: <b>${timeText}</b></div>
-    </div>
-  `;
-}
+import TelemetryLiveAgeBadge from "./components/TelemetryLiveAgeBadge";
+export { TelemetryLiveAgeBadge };
 
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
   const R = 6371; // Earth radius in km
@@ -154,41 +37,6 @@ function formatDistance(distKm) {
   if (distKm === null || distKm === undefined || isNaN(distKm)) return "—";
   if (distKm < 1) return `${Math.round(distKm * 1000)} m`;
   return `${distKm.toFixed(1)} km`;
-}
-
-function decodePolyline(encoded) {
-  if (!encoded || typeof encoded !== "string") return [];
-  const poly = [];
-  let index = 0;
-  const len = encoded.length;
-  let lat = 0;
-  let lng = 0;
-
-  while (index < len) {
-    let b;
-    let shift = 0;
-    let result = 0;
-    do {
-      b = encoded.charCodeAt(index++) - 63;
-      result |= (b & 0x1f) << shift;
-      shift += 5;
-    } while (b >= 0x20);
-    const dlat = result & 1 ? ~(result >> 1) : result >> 1;
-    lat += dlat;
-
-    shift = 0;
-    result = 0;
-    do {
-      b = encoded.charCodeAt(index++) - 63;
-      result |= (b & 0x1f) << shift;
-      shift += 5;
-    } while (b >= 0x20);
-    const dlng = result & 1 ? ~(result >> 1) : result >> 1;
-    lng += dlng;
-
-    poly.push([lat / 1e5, lng / 1e5]);
-  }
-  return poly;
 }
 
 // Normalization functions
@@ -256,31 +104,233 @@ function findBusStopContext(busLat, busLng, orderedStops) {
 }
 
 export default function App() {
-  const mapRef = useRef(null);
   const mapInstance = useRef(null);
-  const userMarker = useRef(null);
-  const stopMarkers = useRef({});
-  const busMarkers = useRef({});
-  const busMarkerMetadata = useRef(new Map());
-  const busMarkerAnimator = useRef(null);
-  const routePolyline = useRef(null);
-  const routeStopMarkers = useRef([]);
-  const routeLiveBusMarkers = useRef([]);
-  const hasFittedBounds = useRef(false);
   const liveBusFetchInFlight = useRef(false);
   const liveBusLastPollSucceeded = useRef(null);
-  const [liveBusPollVersion, setLiveBusPollVersion] = useState(0);
   const [selectedBusNumber, setSelectedBusNumber] = useState(null);
   const [followSelectedBus, setFollowSelectedBus] = useState(false);
+  const [focusedStop, setFocusedStop] = useState(null);
 
   // =========================================================
-  // App State
+  // App State & Route Synchronization
   // =========================================================
-  const [appMode, setAppMode] = useState("bus"); // "bus" | "metro"
+  const getInitialAppMode = () => {
+    if (typeof window !== "undefined") {
+      const path = window.location.pathname.toLowerCase().replace(/\/+$/, "");
+      if (path === "/metro" || path === "/pages/jaipur-metro-guide") {
+        return "metro";
+      }
+    }
+    return "bus";
+  };
+
+  const [appMode, setAppMode] = useState(getInitialAppMode);
+
+  const navigateToMode = (mode, push = true) => {
+    setAppMode(mode);
+    if (typeof window !== "undefined" && window.history) {
+      const targetPath = mode === "metro" ? "/metro" : "/";
+      const currentPath = window.location.pathname.toLowerCase().replace(/\/+$/, "") || "/";
+      const expectedPath = targetPath === "/" ? "/" : targetPath;
+      if (currentPath !== expectedPath) {
+        if (push) {
+          window.history.pushState({ mode }, "", targetPath);
+        } else {
+          window.history.replaceState({ mode }, "", targetPath);
+        }
+      }
+    }
+  };
+
+  // Browser Back / Forward History Navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname.toLowerCase().replace(/\/+$/, "");
+      if (path === "/metro" || path === "/pages/jaipur-metro-guide") {
+        setAppMode("metro");
+      } else {
+        setAppMode("bus");
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  // Idle prefetch of Metro module to ensure zero-CLS SPA navigation
+  useEffect(() => {
+    if (typeof window === "undefined" || appMode === "metro") return;
+    const preload = () => {
+      import("./metro/MetroHome");
+    };
+    if ("requestIdleCallback" in window) {
+      const handle = window.requestIdleCallback(preload, { timeout: 3000 });
+      return () => window.cancelIdleCallback(handle);
+    } else {
+      const timer = setTimeout(preload, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [appMode]);
+
+  // Dynamic SEO Metadata & Structured Data Synchronization
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    if (appMode === "metro") {
+      document.title = "Jaipur Metro Route Map, Fare & Timings | Jaipur Bus Live";
+
+      const updateMeta = (selector, attr, val) => {
+        let el = document.querySelector(selector);
+        if (!el) {
+          el = document.createElement("meta");
+          if (selector.startsWith('meta[name="')) {
+            el.setAttribute("name", selector.slice(11, -2));
+          } else if (selector.startsWith('meta[property="')) {
+            el.setAttribute("property", selector.slice(15, -2));
+          }
+          document.head.appendChild(el);
+        }
+        el.setAttribute(attr, val);
+      };
+
+      const updateLink = (rel, href) => {
+        let el = document.querySelector(`link[rel="${rel}"]`);
+        if (!el) {
+          el = document.createElement("link");
+          el.setAttribute("rel", rel);
+          document.head.appendChild(el);
+        }
+        el.setAttribute("href", href);
+      };
+
+      updateMeta('meta[name="description"]', "content", "Explore Jaipur Metro routes, Pink Line stations, fares, timings and an easy journey planner. Find stations and travel across Jaipur with Jaipur Bus Live.");
+      updateLink("canonical", "https://jaipur-bus-live.web.app/metro");
+      updateMeta('meta[name="robots"]', "content", "index, follow");
+      updateMeta('meta[property="og:type"]', "content", "website");
+      updateMeta('meta[property="og:site_name"]', "content", "Jaipur Bus Live");
+      updateMeta('meta[property="og:locale"]', "content", "en_IN");
+      updateMeta('meta[property="og:title"]', "content", "Jaipur Metro Route Map, Fare & Timings | Jaipur Bus Live");
+      updateMeta('meta[property="og:description"]', "content", "Explore Jaipur Metro routes, Pink Line stations, fares, timings and an easy journey planner. Find stations and travel across Jaipur with Jaipur Bus Live.");
+      updateMeta('meta[property="og:url"]', "content", "https://jaipur-bus-live.web.app/metro");
+      updateMeta('meta[property="og:image"]', "content", "https://jaipur-bus-live.web.app/assets/metro/jaipur-metro-guide-hero.jpg");
+      updateMeta('meta[property="og:image:alt"]', "content", "Jaipur Metro Pink Line route map, stations, timings and journey planner on Jaipur Bus Live");
+      updateMeta('meta[name="twitter:card"]', "content", "summary_large_image");
+      updateMeta('meta[name="twitter:title"]', "content", "Jaipur Metro Route Map, Fare & Timings | Jaipur Bus Live");
+      updateMeta('meta[name="twitter:description"]', "content", "Explore Jaipur Metro routes, Pink Line stations, fares, timings and an easy journey planner. Find stations and travel across Jaipur with Jaipur Bus Live.");
+      updateMeta('meta[name="twitter:image"]', "content", "https://jaipur-bus-live.web.app/assets/metro/jaipur-metro-guide-hero.jpg");
+      updateMeta('meta[name="twitter:image:alt"]', "content", "Jaipur Metro Pink Line route map, stations, timings and journey planner on Jaipur Bus Live");
+
+      // Add Metro Structured Data (WebPage + FAQPage)
+      let metroScript = document.getElementById("metro-structured-data");
+      if (!metroScript) {
+        metroScript = document.createElement("script");
+        metroScript.id = "metro-structured-data";
+        metroScript.type = "application/ld+json";
+        document.head.appendChild(metroScript);
+      }
+      metroScript.textContent = JSON.stringify({
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebPage",
+            "@id": "https://jaipur-bus-live.web.app/metro#webpage",
+            "url": "https://jaipur-bus-live.web.app/metro",
+            "name": "Jaipur Metro Route Map, Fare & Timings | Jaipur Bus Live",
+            "description": "Explore Jaipur Metro routes, Pink Line stations, fares, timings and an easy journey planner. Find stations and travel across Jaipur with Jaipur Bus Live.",
+            "isPartOf": {
+              "@type": "WebSite",
+              "@id": "https://jaipur-bus-live.web.app/#website",
+              "name": "Jaipur Bus Live",
+              "url": "https://jaipur-bus-live.web.app/"
+            }
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "What are the operating timings of Jaipur Metro Pink Line?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Jaipur Metro operates daily from 06:20 AM to 09:50 PM. Peak frequency is every 10–12 minutes, and off-peak frequency is every 15 minutes between Mansarovar and Badi Chaupar."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How many stations are there on the Jaipur Metro Pink Line?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "The Jaipur Metro Pink Line consists of 11 stations over 11.97 km: Mansarovar, New Aatish Market, Vivek Vihar, Shyam Nagar, Ram Nagar, Civil Lines, Railway Station, Sindhi Camp, Chandpole, Chhoti Chaupar, and Badi Chaupar (8 elevated and 3 underground stations)."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What is the ticket fare for Jaipur Metro?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Jaipur Metro single token fares range from ₹6 for 1–2 stations, ₹12 for 3–5 stations, ₹18 for 6–8 stations, up to ₹22 for 9 or more stations. JMRC Smart Card users receive an automatic 10% discount on every journey."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Where can I interchange between Jaipur Metro, Indian Railways, and Bus Stand?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Railway Station metro station provides direct access to Jaipur Junction Railway Station, while Sindhi Camp metro station connects directly to Sindhi Camp Central Bus Stand."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How long does it take to travel the entire Jaipur Metro Pink Line?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "The end-to-end journey from Mansarovar to Badi Chaupar covers 11.97 km and takes approximately 24 to 34 minutes."
+                }
+              }
+            ]
+          }
+        ]
+      });
+    } else {
+      // Restore Bus Homepage Baseline Metadata
+      document.title = "Jaipur Bus Live  JCTSL Live Bus Tracking & Jaipur Metro";
+
+      const updateMeta = (selector, attr, val) => {
+        const el = document.querySelector(selector);
+        if (el) el.setAttribute(attr, val);
+      };
+
+      const updateLink = (rel, href) => {
+        const el = document.querySelector(`link[rel="${rel}"]`);
+        if (el) el.setAttribute("href", href);
+      };
+
+      updateMeta('meta[name="description"]', "content", "Jaipur Bus Live helps you track JCTSL buses with real-time GPS, search bus routes and nearby stops, and explore Jaipur Metro stations, routes, fares and journey information.");
+      updateLink("canonical", "https://jaipur-bus-live.web.app/");
+      updateMeta('meta[name="robots"]', "content", "index, follow");
+      updateMeta('meta[property="og:type"]', "content", "website");
+      updateMeta('meta[property="og:site_name"]', "content", "Jaipur Bus Live");
+      updateMeta('meta[property="og:locale"]', "content", "en_IN");
+      updateMeta('meta[property="og:title"]', "content", "Jaipur Bus Live - JCTSL Live Bus Tracking & Jaipur Metro");
+      updateMeta('meta[property="og:description"]', "content", "Track Jaipur JCTSL buses, find routes and nearby stops, and explore Jaipur Metro information.");
+      updateMeta('meta[property="og:url"]', "content", "https://jaipur-bus-live.web.app/");
+      updateMeta('meta[property="og:image"]', "content", "https://jaipur-bus-live.web.app/jaipur-bus-live-logo.webp");
+      updateMeta('meta[property="og:image:alt"]', "content", "Jaipur Bus Live logo");
+      updateMeta('meta[name="twitter:card"]', "content", "summary");
+      updateMeta('meta[name="twitter:title"]', "content", "Jaipur Bus Live - JCTSL Bus Tracking & Jaipur Metro");
+      updateMeta('meta[name="twitter:description"]', "content", "Jaipur bus tracking, routes, nearby stops and Jaipur Metro information.");
+      updateMeta('meta[name="twitter:image"]', "content", "https://jaipur-bus-live.web.app/jaipur-bus-live-logo.webp");
+      updateMeta('meta[name="twitter:image:alt"]', "content", "Jaipur Bus Live logo");
+
+      // Remove Metro Structured Data script
+      const metroScript = document.getElementById("metro-structured-data");
+      if (metroScript && metroScript.parentNode) {
+        metroScript.parentNode.removeChild(metroScript);
+      }
+    }
+  }, [appMode]);
   const [currentView, setCurrentView] = useState("home"); // "home" | "routeSearch" | "nearbyStops" | "nearbyBuses"
   const [location, setLocation] = useState({ lat: 26.9124, lng: 75.7873 });
   const [hasUserLocation, setHasUserLocation] = useState(false);
-  const [locationError, setLocationError] = useState("");
 
   // Real JCTSL Stops & Routes Data
   const [allStops, setAllStops] = useState([]);
@@ -292,28 +342,15 @@ export default function App() {
   const [cityLiveBuses, setCityLiveBuses] = useState([]);
   const [cityLiveBusesLoading, setCityLiveBusesLoading] = useState(false);
   const [cityLiveBusesError, setCityLiveBusesError] = useState("");
+  const [cityLiveBusesSource, setCityLiveBusesSource] = useState("unavailable");
   const [lastTelemetryUpdate, setLastTelemetryUpdate] = useState("");
-  const [secondsSinceUpdate, setSecondsSinceUpdate] = useState(0);
 
-  useEffect(() => {
-    busMarkerAnimator.current = createMarkerAnimator();
-    const markerMetadata = busMarkerMetadata.current;
-    return () => {
-      busMarkerAnimator.current?.cancelAll();
-      if (mapInstance.current) {
-        Object.values(busMarkers.current).forEach((marker) => {
-          mapInstance.current.removeLayer(marker);
-        });
-      }
-      busMarkers.current = {};
-      markerMetadata.clear();
-      busMarkerAnimator.current = null;
-    };
-  }, []);
+
 
   // Selected Stop Details (for Nearby Stops view)
   const [selectedStop, setSelectedStop] = useState(null);
   const [stopBuses, setStopBuses] = useState([]);
+  const [stopBusesError, setStopBusesError] = useState(false);
   const [stopBusesLoading, setStopBusesLoading] = useState(false);
   const [stopDetailsOpen, setStopDetailsOpen] = useState(false);
 
@@ -333,6 +370,8 @@ export default function App() {
   const [routingLoading, setRoutingLoading] = useState(false);
   const [routingSearched, setRoutingSearched] = useState(false);
   const [journeyRoutes, setJourneyRoutes] = useState([]);
+  const [connectingJourneys, setConnectingJourneys] = useState([]);
+  const [expandedRouteKey, setExpandedRouteKey] = useState(null);
   const [routingMessage, setRoutingMessage] = useState("");
 
   // Universal Route Search View
@@ -341,9 +380,9 @@ export default function App() {
   const [selectedUniversalRoute, setSelectedUniversalRoute] = useState(null);
   const [universalRouteMap, setUniversalRouteMap] = useState(null);
   const [universalLiveBuses, setUniversalLiveBuses] = useState([]);
+  const [universalRouteSource, setUniversalRouteSource] = useState("unavailable");
   const [universalRouteLoading, setUniversalRouteLoading] = useState(false);
   const [universalRouteError, setUniversalRouteError] = useState("");
-  const [showRouteMapToggle, setShowRouteMapToggle] = useState(false);
 
   // Favorites & Info Drawer
   const [favorites, setFavorites] = useState(() => {
@@ -359,52 +398,6 @@ export default function App() {
   // Route stop index cache ref: route_id -> stops array
   const routeStopsCacheRef = useRef({});
 
-  // =========================================================
-  // 2. INITIAL DATA LOAD & REFRESH INTERVAL
-  // =========================================================
-  useEffect(() => {
-    // 1. Fetch real stops
-    fetchBusStops();
-    // 2. Fetch available routes
-    fetchAvailableRoutes();
-    // 3. Fetch city live buses
-    fetchCityLiveBuses();
-
-    // 4. Geolocation request
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          setLocation({ lat, lng });
-          setHasUserLocation(true);
-        },
-        (err) => {
-          console.warn("GPS notice:", err.message);
-          setLocationError(
-            "Location permission is unavailable. You can still search stops and routes manually."
-          );
-        },
-        { enableHighAccuracy: true, timeout: 8000 }
-      );
-    }
-
-    // 5. Polling interval for live telemetry (25 seconds)
-    const refreshInterval = setInterval(() => {
-      fetchCityLiveBuses();
-    }, 25000);
-
-    // 6. Seconds counter for live update badge
-    const timerInterval = setInterval(() => {
-      setSecondsSinceUpdate((prev) => prev + 1);
-    }, 1000);
-
-    return () => {
-      clearInterval(refreshInterval);
-      clearInterval(timerInterval);
-    };
-  }, []);
-
   // Sync favorites to localStorage
   useEffect(() => {
     localStorage.setItem("jbl_favs", JSON.stringify(favorites));
@@ -419,20 +412,13 @@ export default function App() {
     );
   };
 
-  // Re-fetch selected route live telemetry when city buses update
-  useEffect(() => {
-    if (selectedUniversalRoute && currentView === "routeSearch") {
-      loadUniversalRoute(selectedUniversalRoute, false);
-    }
-  }, [cityLiveBuses]);
-
   // =========================================================
   // 3. API FETCH FUNCTIONS (Backend proxy to real JCTSL)
   // =========================================================
-  const fetchBusStops = async () => {
+  const fetchBusStops = useCallback(async () => {
     try {
       setStopsLoading(true);
-      const res = await fetch("https://jaipur-bus-live-5nvg.vercel.app/api/bus-stops");
+      const res = await fetch(apiUrl("/api/bus-stops"));
       const data = await res.json();
       if (Array.isArray(data?.respData)) {
         setAllStops(data.respData);
@@ -442,12 +428,12 @@ export default function App() {
     } finally {
       setStopsLoading(false);
     }
-  };
+  }, []);
 
-  const fetchAvailableRoutes = async () => {
+  const fetchAvailableRoutes = useCallback(async () => {
     try {
       setRoutesLoading(true);
-      const res = await fetch("https://jaipur-bus-live-5nvg.vercel.app/api/routes");
+      const res = await fetch(apiUrl("/api/routes"));
       const data = await res.json();
       if (Array.isArray(data?.respData)) {
         setAvailableRoutes(data.respData);
@@ -457,48 +443,80 @@ export default function App() {
     } finally {
       setRoutesLoading(false);
     }
-  };
+  }, []);
 
-  const fetchCityLiveBuses = async () => {
+  const fetchCityLiveBuses = useCallback(async () => {
     if (liveBusFetchInFlight.current) return;
     liveBusFetchInFlight.current = true;
     try {
       setCityLiveBusesLoading(true);
       setCityLiveBusesError("");
-      const res = await fetch("https://jaipur-bus-live-5nvg.vercel.app/api/live-buses");
+      const res = await fetch(apiUrl("/api/live-buses"));
       const data = await res.json();
-      const buses = Array.isArray(data?.respData)
-        ? data.respData
-        : Array.isArray(data)
-        ? data
-        : [];
-      const successfulResponse =
-        res.ok && (buses.length > 0 || data?.respCode === "200");
+      const buses = Array.isArray(data?.respData) ? data.respData : [];
+      const successfulResponse = res.ok &&
+        data?.success !== false &&
+        String(data?.respCode) === "200" &&
+        Array.isArray(data?.respData);
       liveBusLastPollSucceeded.current = successfulResponse;
-
-      console.log("LIVE BUS COUNT:", buses.length);
-      console.log(
-        "LIVE BUS NUMBERS:",
-        buses.map((b) => b.vehicleNumber || b.vehno || b.vehicle_number)
-      );
 
       if (successfulResponse) {
         setCityLiveBuses(buses);
-        setLastTelemetryUpdate(new Date().toLocaleTimeString());
-        setSecondsSinceUpdate(0);
+        const source = data.isFallback
+          ? "fallback"
+          : data.isCached || data.upstreamReachable !== true
+            ? "cached"
+            : "live";
+        setCityLiveBusesSource(source);
+        const updatedAt = data.cacheTimestamp ||
+          data.summary?.lastUpdated ||
+          data.timestamp;
+        const updatedDate = updatedAt ? new Date(updatedAt) : null;
+        setLastTelemetryUpdate(
+          updatedDate && Number.isFinite(updatedDate.getTime())
+            ? updatedDate.toISOString()
+            : ""
+        );
       } else {
+        setCityLiveBuses([]);
+        setCityLiveBusesSource("unavailable");
+        setLastTelemetryUpdate("");
         setCityLiveBusesError("Unable to fetch live data");
       }
     } catch (err) {
       liveBusLastPollSucceeded.current = false;
       console.warn("City live buses error:", err);
+      setCityLiveBuses([]);
+      setCityLiveBusesSource("unavailable");
+      setLastTelemetryUpdate("");
       setCityLiveBusesError("Unable to fetch live data");
     } finally {
       liveBusFetchInFlight.current = false;
       setCityLiveBusesLoading(false);
-      setLiveBusPollVersion((version) => version + 1);
     }
-  };
+  }, []);
+
+  // =========================================================
+  // 2. INITIAL DATA LOAD & REFRESH INTERVAL
+  // =========================================================
+  useEffect(() => {
+    if (appMode === "metro") return;
+
+    const initialLiveFetch = setTimeout(fetchCityLiveBuses, 0);
+
+    const secondaryDataTimer = setTimeout(() => {
+      fetchBusStops();
+      fetchAvailableRoutes();
+    }, 600);
+
+    const refreshInterval = setInterval(fetchCityLiveBuses, 25000);
+
+    return () => {
+      clearTimeout(initialLiveFetch);
+      clearTimeout(secondaryDataTimer);
+      clearInterval(refreshInterval);
+    };
+  }, [appMode, fetchAvailableRoutes, fetchBusStops, fetchCityLiveBuses]);
 
   const fetchBusesNearStop = async (stop) => {
     if (!stop) return;
@@ -507,10 +525,16 @@ export default function App() {
 
     try {
       setStopBusesLoading(true);
+      setStopBusesError(false);
       const res = await fetch(
-        `https://jaipur-bus-live-5nvg.vercel.app/api/buses-near-stop/${encodeURIComponent(stopCode)}`
+        apiUrl(`/api/buses-near-stop/${encodeURIComponent(stopCode)}`)
       );
       const data = await res.json();
+      if (!res.ok || data?.success === false) {
+        setStopBuses([]);
+        setStopBusesError(true);
+        return;
+      }
       const list = Array.isArray(data?.respData)
         ? data.respData
         : Array.isArray(data?.respData?.buses)
@@ -520,6 +544,7 @@ export default function App() {
     } catch (err) {
       console.warn("Buses near stop error:", err);
       setStopBuses([]);
+      setStopBusesError(true);
     } finally {
       setStopBusesLoading(false);
     }
@@ -529,7 +554,7 @@ export default function App() {
   // 4. SORTED NEARBY STOPS (Computed with Haversine)
   // =========================================================
   const nearbyStops = useMemo(() => {
-    if (!allStops.length) return [];
+    if (appMode === "metro" || !allStops.length) return [];
     return [...allStops]
       .map((s) => {
         const lat = parseFloat(s.latitude);
@@ -541,317 +566,7 @@ export default function App() {
         return { ...s, distanceKm: distKm };
       })
       .sort((a, b) => a.distanceKm - b.distanceKm);
-  }, [allStops, location]);
-
-  // =========================================================
-  // 5. LEAFLET MAP INITIALIZATION & UPDATES
-  // =========================================================
-  useEffect(() => {
-    if (!mapRef.current) return;
-
-    if (!mapInstance.current) {
-      const map = L.map(mapRef.current, {
-        center: [location.lat, location.lng],
-        zoom: 13,
-        zoomControl: false,
-      });
-
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "© OpenStreetMap contributors | JCTSL",
-        maxZoom: 19,
-      }).addTo(map);
-
-      mapInstance.current = map;
-    }
-
-    // Update user marker
-    const map = mapInstance.current;
-    if (hasUserLocation) {
-      const userIcon = L.divIcon({
-        className: "",
-        html: `
-          <div style="
-            width: 20px;
-            height: 20px;
-            background: #2563eb;
-            border: 3px solid #ffffff;
-            border-radius: 50%;
-            box-shadow: 0 0 0 6px rgba(37,99,235,0.25);
-          "></div>
-        `,
-        iconSize: [20, 20],
-        iconAnchor: [10, 10],
-      });
-
-      if (userMarker.current) {
-        userMarker.current.setLatLng([location.lat, location.lng]);
-      } else {
-        userMarker.current = L.marker([location.lat, location.lng], {
-          icon: userIcon,
-        })
-          .addTo(map)
-          .bindPopup("<b>Your Current Location</b>");
-      }
-    }
-  }, [location, hasUserLocation]);
-
-  // Update Live Bus Markers on Home Map
-  useEffect(() => {
-    if (!mapInstance.current) return;
-    const map = mapInstance.current;
-    const activeVehicles = new Set();
-    const now = Date.now();
-
-    (liveBusLastPollSucceeded.current === false ? [] : cityLiveBuses).forEach(
-      (b) => {
-      const lat = Number(b.currentLatitude ?? b.curlat ?? b.latitude);
-      const lng = Number(b.currentLongitude ?? b.curlong ?? b.longitude);
-      const vNo = String(
-        b.vehicleNumber || b.vehno || b.vehicle_number || ""
-      ).trim();
-      const rNo = String(
-        b.routeNumber || b.rno || b.route_number || b.route || ""
-      ).trim();
-
-      if (
-        isNaN(lat) ||
-        isNaN(lng) ||
-        lat === 0 ||
-        lng === 0 ||
-        !vNo ||
-        lat < 25 ||
-        lat > 29 ||
-        lng < 74 ||
-        lng > 78 ||
-        getBusStatus(b) === "GPS INVALID"
-      ) {
-        return;
-      }
-
-      activeVehicles.add(vNo);
-      const busStatus = getBusStatus(b);
-      const reportedAge = Number(b.telemetryAge);
-      const hasReportedAge =
-        b.telemetryAge !== null &&
-        b.telemetryAge !== undefined &&
-        b.telemetryAge !== "";
-      const isFresh =
-        busStatus.startsWith("LIVE ·") &&
-        (!hasReportedAge || reportedAge <= BUS_MARKER_STALE_AFTER_MS / 1000);
-      const existingMetadata = busMarkerMetadata.current.get(vNo);
-      const backendPrevLat = Number(b.previousLatitude);
-      const backendPrevLng = Number(b.previousLongitude);
-      const hasBackendPreviousGps =
-        Number.isFinite(backendPrevLat) &&
-        Number.isFinite(backendPrevLng) &&
-        backendPrevLat >= 25 &&
-        backendPrevLat <= 29 &&
-        backendPrevLng >= 74 &&
-        backendPrevLng <= 78 &&
-        (backendPrevLat !== lat || backendPrevLng !== lng) &&
-        calculateDistanceKm(backendPrevLat, backendPrevLng, lat, lng) >= 0.005;
-
-      const hasClientPreviousGps =
-        !hasBackendPreviousGps &&
-        existingMetadata &&
-        Number.isFinite(existingMetadata.latitude) &&
-        Number.isFinite(existingMetadata.longitude) &&
-        (existingMetadata.latitude !== lat || existingMetadata.longitude !== lng) &&
-        calculateDistanceKm(existingMetadata.latitude, existingMetadata.longitude, lat, lng) >= 0.005;
-
-      const prevLatForBearing = hasBackendPreviousGps
-        ? backendPrevLat
-        : hasClientPreviousGps
-        ? existingMetadata.latitude
-        : null;
-      const prevLngForBearing = hasBackendPreviousGps
-        ? backendPrevLng
-        : hasClientPreviousGps
-        ? existingMetadata.longitude
-        : null;
-
-      const bearing =
-        prevLatForBearing !== null && prevLngForBearing !== null
-          ? (existingMetadata?.bearing !== undefined
-              ? smoothBearingDegrees(
-                  existingMetadata.bearing,
-                  calculateBearingDegrees(
-                    prevLatForBearing,
-                    prevLngForBearing,
-                    lat,
-                    lng
-                  )
-                )
-              : Math.round(
-                  calculateBearingDegrees(
-                    prevLatForBearing,
-                    prevLngForBearing,
-                    lat,
-                    lng
-                  )
-                ))
-          : existingMetadata?.bearing || 0;
-      const popupContent = createBusPopupContent({
-        vehicleNumber: vNo,
-        routeNumber: rNo,
-        status: busStatus,
-        latitude: lat,
-        longitude: lng,
-        speed:
-          b.speed !== null &&
-          b.speed !== undefined &&
-          b.speed !== "" &&
-          Number.isFinite(Number(b.speed))
-            ? Number(b.speed)
-            : null,
-        timestamp: b.currentTimestamp || b.telemetryTimestamp,
-      });
-      let marker = busMarkers.current[vNo];
-
-      if (!marker) {
-        marker = L.marker([lat, lng], {
-          icon: createBusMarkerIcon(
-            busStatus,
-            bearing,
-            vNo,
-            selectedBusNumber === vNo
-          ),
-          title: vNo,
-          alt: `JCTSL bus ${vNo}`,
-        })
-          .addTo(map)
-          .bindPopup(popupContent)
-          .bindTooltip(vNo, {
-            direction: "top",
-            offset: [0, -23],
-            opacity: 0.95,
-            sticky: true,
-          });
-        marker.on("click", () => setSelectedBusNumber(vNo));
-        busMarkers.current[vNo] = marker;
-      } else {
-        const currentPosition = marker.getLatLng();
-        const hasNewCoordinates =
-          currentPosition.lat !== lat || currentPosition.lng !== lng;
-        if (
-          hasNewCoordinates &&
-          isFresh &&
-          busMarkerAnimator.current
-        ) {
-          busMarkerAnimator.current.move(vNo, marker, [lat, lng]);
-        }
-        marker.setIcon(
-          createBusMarkerIcon(
-            busStatus,
-            bearing,
-            vNo,
-            selectedBusNumber === vNo
-          )
-        );
-        marker.setPopupContent(popupContent);
-      }
-
-      busMarkerMetadata.current.set(vNo, {
-        bearing,
-        latitude: lat,
-        longitude: lng,
-        routeNumber: rNo,
-        status: busStatus,
-        speed:
-          b.speed !== null &&
-          b.speed !== undefined &&
-          b.speed !== "" &&
-          Number.isFinite(Number(b.speed))
-            ? Number(b.speed)
-            : null,
-        timestamp: b.currentTimestamp || b.telemetryTimestamp,
-        lastSeenAt: isFresh
-          ? now
-          : existingMetadata?.lastSeenAt ||
-            (hasReportedAge && Number.isFinite(reportedAge)
-              ? now - Math.max(0, reportedAge * 1000)
-              : now),
-        missedPolls: 0,
-      });
-    });
-
-    Object.entries(busMarkers.current).forEach(([vNo, marker]) => {
-      if (activeVehicles.has(vNo)) return;
-
-      const metadata = busMarkerMetadata.current.get(vNo);
-      if (!metadata) return;
-      metadata.missedPolls++;
-      const ageMs = now - metadata.lastSeenAt;
-
-      if (
-        ageMs > BUS_MARKER_STALE_AFTER_MS &&
-        metadata.status !== "GPS INVALID"
-      ) {
-        metadata.status = "GPS STALE";
-        marker.setIcon(
-          createBusMarkerIcon(
-            metadata.status,
-            metadata.bearing,
-            vNo,
-            selectedBusNumber === vNo
-          )
-        );
-        const position = marker.getLatLng();
-        marker.setPopupContent(
-          createBusPopupContent({
-            vehicleNumber: vNo,
-            routeNumber: metadata.routeNumber,
-            status: metadata.status,
-            latitude: position.lat,
-            longitude: position.lng,
-            speed: null,
-            timestamp: metadata.timestamp,
-          })
-        );
-      }
-
-      if (ageMs > BUS_MARKER_EXPIRY_MS) {
-        busMarkerAnimator.current?.cancel(vNo);
-        map.removeLayer(marker);
-        delete busMarkers.current[vNo];
-        busMarkerMetadata.current.delete(vNo);
-        if (selectedBusNumber === vNo) {
-          setSelectedBusNumber(null);
-          setFollowSelectedBus(false);
-        }
-      }
-    });
-
-    // Auto-fit map bounds on first load so all active transmitting buses are immediately visible
-    if (activeVehicles.size > 0 && !hasFittedBounds.current) {
-      hasFittedBounds.current = true;
-      const markersList = Object.values(busMarkers.current);
-      if (markersList.length > 0) {
-        const group = L.featureGroup(markersList);
-        map.fitBounds(group.getBounds().pad(0.08));
-      }
-    }
-  }, [cityLiveBuses, liveBusPollVersion, selectedBusNumber]);
-
-  useEffect(() => {
-    if (!followSelectedBus || !selectedBusNumber || !mapInstance.current) return;
-    const selectedBus = cityLiveBuses.find(
-      (bus) =>
-        String(bus.vehicleNumber || bus.vehno || bus.vehicle_number || "").trim() ===
-        selectedBusNumber
-    );
-    if (!selectedBus || !getBusStatus(selectedBus).startsWith("LIVE ·")) return;
-
-    const latitude = Number(
-      selectedBus.currentLatitude ?? selectedBus.curlat ?? selectedBus.latitude
-    );
-    const longitude = Number(
-      selectedBus.currentLongitude ?? selectedBus.curlong ?? selectedBus.longitude
-    );
-    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-      mapInstance.current.panTo([latitude, longitude], { animate: true });
-    }
-  }, [cityLiveBuses, followSelectedBus, selectedBusNumber]);
+  }, [appMode, allStops, location]);
 
   const locateMe = () => {
     if (!mapInstance.current) return;
@@ -889,37 +604,7 @@ export default function App() {
     if (!isNaN(lat) && !isNaN(lng) && lat !== 0) {
       setCurrentView("home");
       setStopDetailsOpen(false);
-      setTimeout(() => {
-        if (mapInstance.current) {
-          mapInstance.current.setView([lat, lng], 16);
-          const stopIcon = L.divIcon({
-            className: "",
-            html: `
-              <div style="
-                width: 24px;
-                height: 24px;
-                background: #e11d48;
-                border: 2px solid #ffffff;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: #ffffff;
-                font-size: 11px;
-                font-weight: 900;
-                box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-              ">●</div>
-            `,
-            iconSize: [24, 24],
-            iconAnchor: [12, 12],
-          });
-
-          L.marker([lat, lng], { icon: stopIcon })
-            .addTo(mapInstance.current)
-            .bindPopup(`<b>${stop.bus_stop_name}</b><br>Code: ${stop.bus_stop_code || "—"}`)
-            .openPopup();
-        }
-      }, 100);
+      setFocusedStop(stop);
     }
   };
 
@@ -971,13 +656,15 @@ export default function App() {
       setRoutingLoading(true);
       setRoutingSearched(true);
       setJourneyRoutes([]);
+      setConnectingJourneys([]);
+      setExpandedRouteKey(null);
       setRoutingMessage("");
 
       const fromCode = origin.bus_stop_code || origin.bus_stop_id || origin.bus_stop_name;
       const toCode = dest.bus_stop_code || dest.bus_stop_id || dest.bus_stop_name;
 
       // Call strictly validated backend route matcher
-      const res = await fetch("https://jaipur-bus-live-5nvg.vercel.app/api/routes-between-stops", {
+      const res = await fetch(apiUrl("/api/routes-between-stops"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -988,14 +675,20 @@ export default function App() {
 
       const data = await res.json();
       const validRoutes = Array.isArray(data?.routes) ? data.routes : [];
+      const connections = Array.isArray(data?.connecting_journeys) ? data.connecting_journeys : [];
+
       setJourneyRoutes(validRoutes);
+      setConnectingJourneys(connections);
       setRoutingMessage(
         data?.message ||
-          (validRoutes.length === 0 ? "No direct JCTSL route found" : "")
+          (validRoutes.length === 0 && connections.length === 0
+            ? "No direct or connecting JCTSL routes found"
+            : "")
       );
     } catch (err) {
       console.warn("Routes between stops error:", err);
       setJourneyRoutes([]);
+      setConnectingJourneys([]);
       setRoutingMessage("Error connecting to live route verification service.");
     } finally {
       setRoutingLoading(false);
@@ -1025,12 +718,10 @@ export default function App() {
       return rCode === qRoute || idCode === qRoute;
     });
 
-    let matchedRoutes = [];
-    if (exactRouteMatches.length > 0) {
-      matchedRoutes = exactRouteMatches;
-    } else {
-      // 2. Keyword / Name / Partial Search
-      matchedRoutes = availableRoutes.filter((r) => {
+    // 2. Keyword / Name / Partial Search
+    const matchedRoutes = exactRouteMatches.length > 0
+      ? exactRouteMatches
+      : availableRoutes.filter((r) => {
         const nameNorm = String(r.route_name || "").toLowerCase();
         const nameClean = cleanText(r.route_name);
         const orgCode = cleanRouteCode(r.route_orgno);
@@ -1041,7 +732,6 @@ export default function App() {
           nameClean.includes(qClean)
         );
       });
-    }
 
     // Group matching routes by clean route org number so BOTH DIRECTIONS are shown together!
     const groupMap = new Map();
@@ -1075,51 +765,73 @@ export default function App() {
   // =========================================================
   // 10. LOAD UNIVERSAL ROUTE & TIMELINE
   // =========================================================
-  const loadUniversalRoute = async (route, resetMapView = true) => {
+  const loadUniversalRoute = useCallback(async (route, resetMapView = true) => {
     if (!route) return;
     try {
       if (resetMapView) setUniversalRouteLoading(true);
       setUniversalRouteError("");
+      setUniversalRouteSource("unavailable");
 
       const routeId = String(route.route_id);
 
       // Fetch route map (stops & polyline) and live route upcoming buses
+      const readApiResponse = async (response) => {
+        const data = await response.json();
+        if (!response.ok || data?.success === false || data?.dataAvailable === false) {
+          throw new Error("Route data unavailable");
+        }
+        return data;
+      };
       const [mapRes, liveRes] = await Promise.allSettled([
-        fetch("https://jaipur-bus-live-5nvg.vercel.app/api/route-map", {
+        fetch(apiUrl("/api/route-map"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ route_no: routeId }),
-        }).then((r) => r.json()),
-        fetch("https://jaipur-bus-live-5nvg.vercel.app/api/live-route", {
+        }).then(readApiResponse),
+        fetch(apiUrl("/api/live-route"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ route_id: routeId }),
-        }).then((r) => r.json()),
+        }).then(readApiResponse),
       ]);
 
-      const mapData = mapRes.status === "fulfilled" ? mapRes.value?.respData : null;
-      const liveData = liveRes.status === "fulfilled" ? liveRes.value?.respData : null;
+      const mapResponse = mapRes.status === "fulfilled" ? mapRes.value : null;
+      const liveResponse = liveRes.status === "fulfilled" ? liveRes.value : null;
+      const mapData = mapResponse?.respData;
+      const liveData = liveResponse?.respData;
 
       // Extract ordered stops from either mapData or liveData
       let orderedStops = [];
-      if (Array.isArray(mapData?.bus_stop_list) && mapData.bus_stop_list.length > 0) {
-        orderedStops = mapData.bus_stop_list.map((s, idx) => ({
+      const mapStops = Array.isArray(mapData)
+        ? mapData
+        : mapData?.bus_stop_list;
+      const liveRouteStops = Array.isArray(liveData?.route)
+        ? liveData.route
+        : Array.isArray(liveData?.stops)
+          ? liveData.stops
+          : [];
+      const sourceStops = Array.isArray(mapStops) && mapStops.length > 0
+        ? mapStops
+        : liveRouteStops;
+      if (sourceStops.length > 0) {
+        orderedStops = sourceStops.map((s, idx) => ({
           ...s,
-          bus_stop: s.bus_stop || s.bus_stop_name || s.stop_name,
-          route_order: s.route_order || String(idx + 1),
-        }));
-      } else if (Array.isArray(liveData?.route) && liveData.route.length > 0) {
-        orderedStops = liveData.route.map((s, idx) => ({
-          bus_stop: s.stop_name || s.bus_stop_name,
-          bus_stop_code: s.stop_code,
-          latitude: s.latitude,
-          longitude: s.longitude,
-          route_order: String(idx + 1),
-        }));
+          bus_stop: s.bus_stop || s.bus_stop_name || s.stop_name || s.stopName || s.busStopName || s.name || s.stopname,
+          route_order: s.route_order || s.bus_stop_order || s.order || String(idx + 1),
+        })).filter((stop) => Boolean(stop.bus_stop));
+      }
+
+      if ((mapRes.status === "rejected" && liveRes.status === "rejected") ||
+          orderedStops.length === 0) {
+        setUniversalRouteMap(null);
+        setUniversalLiveBuses([]);
+        setUniversalRouteSource("unavailable");
+        setUniversalRouteError("Route information is temporarily unavailable.");
+        return;
       }
 
       setUniversalRouteMap({
-        ...mapData,
+        ...(mapData && !Array.isArray(mapData) ? mapData : {}),
         bus_stop_list: orderedStops,
       });
 
@@ -1128,19 +840,22 @@ export default function App() {
 
       // Extract ALL live buses for this direction
       const busesMap = new Map();
-      if (Array.isArray(liveData?.route)) {
+      if (!liveResponse?.isFallback && Array.isArray(liveData?.route)) {
         liveData.route.forEach((st) => {
           if (Array.isArray(st.upcomingbuses)) {
             st.upcomingbuses.forEach((b) => {
               const vNo = String(
                 b.vehicel_no || b.vehicle_no || b.vehNo || ""
               ).trim();
-              if (vNo && !busesMap.has(vNo)) {
-                const lat = parseFloat(b.latitude);
-                const lng = parseFloat(b.longitude);
+              const vehicleKey = vNo.toUpperCase();
+              if (vNo && !busesMap.has(vehicleKey)) {
+                const lat = Number(b.latitude);
+                const lng = Number(b.longitude);
+                if (!Number.isFinite(lat) || !Number.isFinite(lng) ||
+                    lat < 25 || lat > 29 || lng < 74 || lng > 78) return;
                 const stopCtx = findBusStopContext(lat, lng, orderedStops);
 
-                busesMap.set(vNo, {
+                busesMap.set(vehicleKey, {
                   vehicle_number: vNo,
                   latitude: lat,
                   longitude: lng,
@@ -1159,18 +874,51 @@ export default function App() {
           }
         });
       }
+      if (!liveResponse?.isFallback && Array.isArray(liveData?.buses)) {
+        liveData.buses.forEach((bus) => {
+          const vNo = String(bus.vehicle_number || bus.vehno || bus.vehicle_no || "").trim();
+          const vehicleKey = vNo.toUpperCase();
+          const lat = Number(bus.latitude ?? bus.curlat);
+          const lng = Number(bus.longitude ?? bus.curlong);
+          if (!vNo || busesMap.has(vehicleKey) || !Number.isFinite(lat) ||
+              !Number.isFinite(lng) || lat < 25 || lat > 29 || lng < 74 || lng > 78) {
+            return;
+          }
+          const stopCtx = findBusStopContext(lat, lng, orderedStops);
+          busesMap.set(vehicleKey, {
+            vehicle_number: vNo,
+            latitude: lat,
+            longitude: lng,
+            eta: bus.eta || null,
+            veh_msg: bus.veh_msg || "Live",
+            veh_color: bus.veh_color || "#16a34a",
+            speed: bus.speed ?? null,
+            nearestIndex: stopCtx.nearestIndex,
+            nearestStop: stopCtx.nearestStop,
+            nextStop: stopCtx.nextStop,
+            distanceKm: stopCtx.distanceKm,
+            explicitStop: null,
+          });
+        });
+      }
 
       // Also check cityLiveBuses if they match route number
       const cleanRNo = cleanRouteCode(route.route_orgno);
-      cityLiveBuses.forEach((b) => {
-        const busRNo = cleanRouteCode(b.rno);
-        const vNo = String(b.vehno || "").trim();
-        if (vNo && busRNo === cleanRNo && !busesMap.has(vNo)) {
-          const lat = parseFloat(b.curlat);
-          const lng = parseFloat(b.curlong);
+      if (["live", "cached"].includes(cityLiveBusesSource)) {
+        cityLiveBuses.forEach((b) => {
+          const busRNo = cleanRouteCode(b.rno);
+          const vNo = String(b.vehno || "").trim();
+          const vehicleKey = vNo.toUpperCase();
+          const lat = Number(b.curlat);
+          const lng = Number(b.curlong);
+          if (!vNo || busRNo !== cleanRNo || busesMap.has(vehicleKey) ||
+              !Number.isFinite(lat) || !Number.isFinite(lng) ||
+              lat < 25 || lat > 29 || lng < 74 || lng > 78) {
+            return;
+          }
           const stopCtx = findBusStopContext(lat, lng, orderedStops);
 
-          busesMap.set(vNo, {
+          busesMap.set(vehicleKey, {
             vehicle_number: vNo,
             latitude: lat,
             longitude: lng,
@@ -1184,20 +932,56 @@ export default function App() {
             distanceKm: stopCtx.distanceKm,
             explicitStop: null,
           });
-        }
-      });
+        });
+      }
 
       const activeBuses = Array.from(busesMap.values());
       setUniversalLiveBuses(activeBuses);
-      setLastTelemetryUpdate(new Date().toLocaleTimeString());
-      setSecondsSinceUpdate(0);
+      const hasProviderRouteData = liveResponse?.upstreamReachable === true &&
+        !liveResponse?.isCached &&
+        !liveResponse?.isFallback;
+      const hasCityLiveData = activeBuses.length > 0 &&
+        ["live", "cached"].includes(cityLiveBusesSource);
+      setUniversalRouteSource(
+        hasProviderRouteData
+          ? "live"
+          : hasCityLiveData
+            ? cityLiveBusesSource
+            : liveResponse?.isCached
+              ? "cached"
+              : liveResponse?.isFallback
+                ? "fallback"
+                : "unavailable"
+      );
+      const updatedAt = liveResponse?.cacheTimestamp ||
+        liveResponse?.summary?.lastUpdated ||
+        liveResponse?.timestamp;
+      const updatedDate = updatedAt ? new Date(updatedAt) : null;
+      setLastTelemetryUpdate(
+        updatedDate && Number.isFinite(updatedDate.getTime())
+          ? updatedDate.toISOString()
+          : ""
+      );
     } catch (err) {
       console.warn("Load universal route error:", err);
+      setUniversalRouteMap(null);
+      setUniversalLiveBuses([]);
+      setUniversalRouteSource("unavailable");
       setUniversalRouteError("JCTSL route service temporarily unavailable");
     } finally {
       setUniversalRouteLoading(false);
     }
-  };
+  }, [cityLiveBuses, cityLiveBusesSource]);
+
+  // Re-fetch selected route live telemetry when city buses update.
+  useEffect(() => {
+    if (!selectedUniversalRoute || currentView !== "routeSearch") return;
+    const refreshTimer = setTimeout(
+      () => loadUniversalRoute(selectedUniversalRoute, false),
+      0
+    );
+    return () => clearTimeout(refreshTimer);
+  }, [cityLiveBuses, currentView, loadUniversalRoute, selectedUniversalRoute]);
 
   const handleSelectRouteDirection = async (route) => {
     if (!route) return;
@@ -1232,6 +1016,21 @@ export default function App() {
     const org = cleanRouteCode(selectedUniversalRoute.route_orgno);
     return availableRoutes.filter((r) => cleanRouteCode(r.route_orgno) === org);
   }, [selectedUniversalRoute, availableRoutes]);
+  const telemetryStatusLabel = cityLiveBusesSource === "live"
+    ? "LIVE"
+    : cityLiveBusesSource === "cached"
+      ? "CACHED"
+      : cityLiveBusesSource === "fallback"
+        ? "FALLBACK"
+        : "OFFLINE";
+  const telemetryStatusTone = cityLiveBusesSource === "live"
+    ? "emerald"
+    : cityLiveBusesSource === "cached"
+      ? "amber"
+      : "rose";
+  const telemetryTimeLabel = lastTelemetryUpdate
+    ? new Date(lastTelemetryUpdate).toLocaleTimeString()
+    : "unknown";
 
   // =========================================================
   // RENDER UI
@@ -1241,13 +1040,15 @@ export default function App() {
       {/* ========================================================= */}
       {/* 1. TOP HEADER (PREMIUM 3D ELEVATION & DEPTH)              */}
       {/* ========================================================= */}
-      <header className="sticky top-0 z-[500] flex h-14 w-full items-center justify-between header-3d px-4 max-w-md mx-auto">
+      {appMode !== "metro" && (
+        <header className="sticky top-0 z-[500] flex h-14 w-full items-center justify-between header-3d px-4 max-w-md mx-auto">
         {/* Left Hamburger Icon (3D Tactile Button) */}
         <button
           type="button"
           onClick={() => setShowInfoDrawer(true)}
-          className="btn-3d btn-3d-light flex flex-col justify-center items-center gap-1.5 h-9 w-9 rounded-xl shadow-xs"
+          className="btn-3d btn-3d-light flex flex-col justify-center items-center gap-1.5 h-11 w-11 min-h-[44px] min-w-[44px] rounded-xl shadow-xs"
           title="About Jaipur Bus Live"
+          aria-label="About Jaipur Bus Live navigation menu"
         >
           <span className="block h-[2.5px] w-5 rounded-full bg-slate-900"></span>
           <span className="block h-[2.5px] w-5 rounded-full bg-slate-900"></span>
@@ -1257,7 +1058,7 @@ export default function App() {
         {/* Center: Branding (Bus / Metro / Emergency / Support) */}
         <div
           onClick={() => {
-            setAppMode("bus");
+            navigateToMode("bus");
             backToHome();
           }}
           className="flex items-center gap-2.5 select-none cursor-pointer group"
@@ -1384,7 +1185,7 @@ export default function App() {
             <>
               {/* Support 3D Logo Mark */}
               <div className="card-3d-dark relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-md border border-slate-700/80 group-hover:scale-105 transition-transform duration-150">
-                <span className="text-lg">❤️</span>
+                <span className="text-lg">❤¤ï¸</span>
               </div>
 
               {/* Support Typography */}
@@ -1412,8 +1213,9 @@ export default function App() {
         <button
           type="button"
           onClick={() => setShowFavoritesModal(true)}
-          className="btn-3d btn-3d-light flex items-center justify-center h-9 w-9 rounded-xl shadow-xs"
+          className="btn-3d btn-3d-light flex items-center justify-center h-11 w-11 min-h-[44px] min-w-[44px] rounded-xl shadow-xs text-red-600"
           title="Saved Favorite Routes"
+          aria-label="Saved Favorite Routes"
         >
           <svg
             width="20"
@@ -1429,65 +1231,100 @@ export default function App() {
           </svg>
         </button>
       </header>
+      )}
+      {/* HOME TRANSPORT NAVIGATION */}
+      {appMode !== "metro" && (
+        <div
+          className={`mx-auto grid w-full max-w-md ${
+            appMode === "metro" ? "grid-cols-2" : "grid-cols-3"
+          } gap-2 px-4 pt-3 pb-2`}
+        >
+        <a
+          href="/"
+          onClick={(e) => {
+            e.preventDefault();
+            navigateToMode("bus");
+            backToHome();
+          }}
+          aria-label="Switch to Jaipur Bus tracking"
+          className={`flex items-center justify-center gap-1.5 rounded-xl border px-2 py-3 min-h-[48px] text-sm font-extrabold shadow-sm transition active:scale-95 ${
+            appMode === "bus"
+              ? "border-rose-600 bg-rose-600 text-white shadow-rose-200"
+              : "border-slate-200 bg-white text-slate-700 hover:border-rose-300"
+          }`}
+        >
+          <span>🚌</span>
+          <span>Bus</span>
+        </a>
 
-      {/* ========================================================= */}
-      {/* MAIN TRANSIT MODE SELECTOR (BUS / METRO / EMERGENCY / SUPPORT) */}
-      {/* ========================================================= */}
-      <div className="w-full max-w-md mx-auto px-4 pt-2.5 pb-1">
-        <div className="grid grid-cols-4 gap-1.5 card-3d-sunken p-1.5 rounded-2xl">
-          <button
-            type="button"
-            onClick={() => {
-              setAppMode("bus");
-              backToHome();
-            }}
-            className={`btn-3d py-2 px-1 rounded-xl text-[11px] sm:text-xs font-black transition flex flex-col sm:flex-row items-center justify-center gap-1 ${
-              appMode === "bus"
-                ? "btn-3d-dark shadow-md"
-                : "text-slate-700 hover:text-black hover:bg-white/70"
-            }`}
-          >
-            <span className="text-sm">🚌</span>
-            <span>Bus</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setAppMode("metro")}
-            className={`btn-3d py-2 px-1 rounded-xl text-[11px] sm:text-xs font-black transition flex flex-col sm:flex-row items-center justify-center gap-1 ${
-              appMode === "metro"
-                ? "btn-3d-metro shadow-md"
-                : "text-slate-700 hover:text-rose-700 hover:bg-white/70"
-            }`}
-          >
-            <span className="text-sm">🚇</span>
-            <span>Metro</span>
-          </button>
+        <a
+          href="/metro"
+          onMouseEnter={() => { import("./metro/MetroHome"); }}
+          onTouchStart={() => { import("./metro/MetroHome"); }}
+          onClick={(e) => {
+            e.preventDefault();
+            navigateToMode("metro");
+            window.scrollTo(0, 0);
+          }}
+          aria-label="Switch to Jaipur Metro guide"
+          className={`flex items-center justify-center gap-1.5 rounded-xl border px-2 py-3 min-h-[48px] text-sm font-extrabold shadow-sm transition active:scale-95 ${
+            appMode === "metro"
+              ? "border-pink-600 bg-pink-600 text-white shadow-pink-200"
+              : "border-slate-200 bg-white text-slate-700 hover:border-pink-300"
+          }`}
+        >
+          <span>🚇</span>
+          <span>Metro</span>
+        </a>
+
+        {appMode !== "metro" && (
           <button
             type="button"
             onClick={() => setAppMode("emergency")}
-            className={`btn-3d py-2 px-1 rounded-xl text-[11px] sm:text-xs font-black transition flex flex-col sm:flex-row items-center justify-center gap-1 ${
+            aria-label="Switch to Emergency SOS helplines"
+            className={`flex items-center justify-center gap-1.5 rounded-xl border px-2 py-3 min-h-[48px] text-sm font-extrabold shadow-sm transition active:scale-95 ${
               appMode === "emergency"
-                ? "btn-3d-red shadow-md"
-                : "text-slate-700 hover:text-rose-700 hover:bg-white/70"
+                ? "border-red-600 bg-red-600 text-white"
+                : "border-slate-200 bg-white text-slate-700 hover:border-red-300"
             }`}
           >
-            <span className="text-sm">🚨</span>
+            <span>🚨</span>
             <span>SOS</span>
           </button>
-          <button
-            type="button"
-            onClick={() => setAppMode("support")}
-            className={`btn-3d py-2 px-1 rounded-xl text-[11px] sm:text-xs font-black transition flex flex-col sm:flex-row items-center justify-center gap-1 ${
-              appMode === "support"
-                ? "btn-3d-dark shadow-md"
-                : "text-slate-700 hover:text-black hover:bg-white/70"
-            }`}
-          >
-            <span className="text-sm">❤️</span>
-            <span>Support</span>
-          </button>
-        </div>
+        )}
       </div>
+      )}
+
+      {/* MAIN ROUTE SEARCH */}
+      {appMode !== "metro" && (
+        <div className="w-full max-w-md mx-auto px-4 pt-2.5 pb-3">
+        <button
+          type="button"
+          onClick={() => openRouteSearch()}
+          aria-label="Open Route Search with Live Bus"
+          className="card-3d-interactive flex w-full items-center gap-3 rounded-2xl border border-slate-200/90 bg-white px-4 py-3.5 min-h-[52px] text-left shadow-md transition hover:border-slate-300"
+        >
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 28 28"
+            fill="none"
+            className="shrink-0"
+          >
+            <path d="M6 4v16" stroke="#e11d48" strokeWidth="2" strokeLinecap="round" />
+            <path d="M6 5h8l-1.5 3.5L14 12H6z" fill="#e11d48" />
+            <path d="M7 17c3 2 6 3 10 1" stroke="#94a3b8" strokeWidth="2" strokeDasharray="2 3" strokeLinecap="round" />
+            <circle cx="20" cy="18" r="3.5" fill="#e11d48" />
+            <circle cx="20" cy="18" r="1.5" fill="white" />
+          </svg>
+          <span className="text-sm font-bold text-slate-600">
+            Route Search with Live Bus
+          </span>
+          <span className="ml-auto text-lg text-slate-400">›</span>
+        </button>
+      </div>
+      )}
+
 
       {/* ========================================================= */}
       {/* 2. MAP VIEW CONTAINER (Preserved in DOM for Leaflet)      */}
@@ -1497,164 +1334,45 @@ export default function App() {
           appMode === "bus" && currentView === "home" ? "block" : "hidden"
         }`}
       >
-        <div className="relative h-[46vh] min-h-[340px] w-full map-container-relative">
-          <div ref={mapRef} className="absolute inset-0 w-full h-full z-0" />
+        <div className="relative h-[46vh] min-h-[340px] w-full map-container-relative bg-slate-100 rounded-3xl overflow-hidden border border-slate-200/90 shadow-md">
+          {/* Permanent Hero SVG - Renders immediately with App Shell and is NEVER unmounted */}
+          <img
+            src="/assets/hero/hero-bus-hawa-mahal.svg"
+            alt="Jaipur Bus Live Transit Map"
+            width="520"
+            height="320"
+            fetchPriority="high"
+            decoding="async"
+            className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none z-0"
+          />
 
-          {/* Floating Search Bar over Map (3D Interactive Surface) */}
-          <div className="absolute left-4 right-4 top-3 z-[400]">
-            <div
-              onClick={() => openRouteSearch()}
-              className="card-3d-interactive flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200/90 bg-white px-4 py-3.5 shadow-md hover:border-slate-300 transition"
-            >
-              {/* Route Flag-Pin SVG */}
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 28 28"
-                fill="none"
-                className="shrink-0"
-              >
-                <path
-                  d="M6 4v16"
-                  stroke="#e11d48"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-                <path d="M6 5h8l-1.5 3.5L14 12H6z" fill="#e11d48" />
-                <path
-                  d="M7 17c3 2 6 3 10 1"
-                  stroke="#94a3b8"
-                  strokeWidth="2"
-                  strokeDasharray="2 3"
-                  strokeLinecap="round"
-                />
-                <circle cx="20" cy="18" r="3.5" fill="#e11d48" />
-                <circle cx="20" cy="18" r="1.5" fill="white" />
-              </svg>
-              <span className="text-sm font-bold text-slate-500">
-                Route Search with Live Bus
-              </span>
-            </div>
-          </div>
-
-          {/* Floating Live Buses Fleet Counter on Map (3D Tactile Pill — bottom left) */}
-          <button
-            type="button"
-            onClick={() => {
-              const markersList = Object.values(busMarkers.current);
-              if (mapInstance.current && markersList.length > 0) {
-                const group = L.featureGroup(markersList);
-                mapInstance.current.fitBounds(group.getBounds().pad(0.08));
-              }
-            }}
-            className="floating-pill-3d btn-3d btn-3d-light map-btn-bottom-left flex items-center gap-2 rounded-full px-4 py-2.5 text-xs font-black text-slate-900 active:scale-95 transition"
-            title="Click to frame all active transmitting buses on map"
-          >
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>
-              {cityLiveBusesLoading && cityLiveBuses.length === 0
-                ? "Connecting GPS..."
-                : `${cityLiveBuses.length} buses receiving GPS`}
-            </span>
-          </button>
-
-          {/* Floating Locate Button at bottom right (3D Tactile Circle — bottom right) */}
-          <button
-            type="button"
-            onClick={locateMe}
-            className="btn-3d btn-3d-light map-btn-bottom-right flex h-11 w-11 items-center justify-center rounded-full text-black shadow-md active:scale-95 transition"
-            title="Center on my location"
-          >
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="12" cy="12" r="7" />
-              <line x1="12" y1="2" x2="12" y2="5" />
-              <line x1="12" y1="19" x2="12" y2="22" />
-              <line x1="2" y1="12" x2="5" y2="12" />
-              <line x1="19" y1="12" x2="22" y2="12" />
-              <circle cx="12" cy="12" r="2" fill="currentColor" />
-            </svg>
-          </button>
-
-          {/* Floating Selected Bus HUD Card over Map */}
-          {(() => {
-            if (!selectedBusNumber) return null;
-            const selBus = cityLiveBuses.find(
-              (b) =>
-                String(b.vehicleNumber || b.vehno || b.vehicle_number || "").trim() ===
-                selectedBusNumber
-            );
-            const metadata = busMarkerMetadata.current.get(selectedBusNumber);
-            const status = selBus ? getBusStatus(selBus) : (metadata?.status || "LIVE · IDLE");
-            const speed = selBus ? getBusSpeedLabel(selBus) : (metadata?.speed != null ? `${metadata.speed} km/h` : "Speed unavailable");
-            const routeNo = selBus?.routeNumber || selBus?.rno || metadata?.routeNumber || "";
-            const isLive = status.startsWith("LIVE ·");
-
-            return (
-              <div className="absolute left-3 right-3 bottom-16 z-[400] card-3d rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200/95 p-3 shadow-lg">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-sm font-black text-slate-900 truncate">
-                      🚌 {selectedBusNumber}
-                    </span>
-                    {routeNo && (
-                      <span className="shrink-0 rounded-md bg-rose-600 px-1.5 py-0.5 text-[10px] font-black text-white">
-                        Route {routeNo}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span
-                      className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${getBusStatusClasses(
-                        status
-                      )}`}
-                    >
-                      ● {status}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedBusNumber(null);
-                        setFollowSelectedBus(false);
-                      }}
-                      className="h-6 w-6 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 text-xs font-bold transition"
-                      title="Deselect bus"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-2 flex items-center justify-between text-[11px] text-slate-600 border-t border-slate-100 pt-2">
-                  <div>
-                    Speed: <b className="text-slate-900">{speed}</b>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={!isLive}
-                      onClick={() => setFollowSelectedBus((following) => !following)}
-                      className={`px-3 py-1 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                        followSelectedBus
-                          ? "bg-sky-600 text-white shadow-xs"
-                          : "bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100"
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      <span>{followSelectedBus ? "🎯 Following" : "📍 Follow Bus"}</span>
-                    </button>
-                  </div>
+          <Suspense
+            fallback={
+              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-gradient-to-t from-slate-900/60 via-slate-900/20 to-transparent text-white pointer-events-none">
+                <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/95 border border-rose-200/80 shadow-sm text-xs font-bold text-slate-800 backdrop-blur-xs">
+                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Connecting Jaipur Live Map...</span>
                 </div>
               </div>
-            );
-          })()}
+            }
+          >
+            <LiveBusMap
+              location={location}
+              hasUserLocation={hasUserLocation}
+              cityLiveBuses={cityLiveBuses}
+              cityLiveBusesLoading={cityLiveBusesLoading}
+              cityLiveBusesSource={cityLiveBusesSource}
+              liveBusLastPollSucceeded={liveBusLastPollSucceeded}
+              selectedBusNumber={selectedBusNumber}
+              onSelectBusNumber={setSelectedBusNumber}
+              followSelectedBus={followSelectedBus}
+              onToggleFollowSelectedBus={setFollowSelectedBus}
+              locateMe={locateMe}
+              universalLiveBuses={universalLiveBuses}
+              focusedStop={focusedStop}
+              mapInstanceRef={mapInstance}
+            />
+          </Suspense>
         </div>
       </div>
 
@@ -1662,27 +1380,37 @@ export default function App() {
       {/* JAIPUR METRO MODULE (JMRC PINK LINE)                      */}
       {/* ========================================================= */}
       {appMode === "metro" && (
-        <main className="w-full flex-1 max-w-md mx-auto px-4 pt-2">
-          <MetroHome onBackToBus={() => setAppMode("bus")} />
-        </main>
+        <MetroErrorBoundary onBackToBus={() => navigateToMode("bus")}>
+          <Suspense fallback={<MetroSuspenseSkeleton />}>
+            <div className="w-full flex-1">
+              <MetroHome onBackToBus={() => navigateToMode("bus")} />
+            </div>
+          </Suspense>
+        </MetroErrorBoundary>
       )}
 
       {/* ========================================================= */}
       {/* EMERGENCY & SOS MODULE                                    */}
       {/* ========================================================= */}
       {appMode === "emergency" && (
-        <main className="w-full flex-1 max-w-md mx-auto px-4 pt-2">
-          <EmergencyView userPos={hasUserLocation ? location : null} onBackToBus={() => setAppMode("bus")} />
-        </main>
+        <EmergencyErrorBoundary onBackToBus={() => setAppMode("bus")}>
+          <Suspense fallback={<div className="w-full flex-1 max-w-4xl mx-auto px-4 pt-12 pb-16 text-center text-sm font-bold text-slate-500">Loading Jaipur Emergency SOS...</div>}>
+            <div className="w-full flex-1">
+              <EmergencyView userPos={hasUserLocation ? location : null} onBackToBus={() => setAppMode("bus")} />
+            </div>
+          </Suspense>
+        </EmergencyErrorBoundary>
       )}
 
       {/* ========================================================= */}
       {/* SUPPORT JBL MODULE                                        */}
       {/* ========================================================= */}
       {appMode === "support" && (
-        <main className="w-full flex-1 max-w-md mx-auto px-4 pt-2">
-          <SupportView onBackToBus={() => setAppMode("bus")} />
-        </main>
+        <Suspense fallback={<div className="w-full flex-1 max-w-3xl mx-auto px-4 pt-12 pb-16 text-center text-sm font-bold text-slate-500">Loading Support...</div>}>
+          <div className="w-full flex-1 max-w-3xl mx-auto px-4 py-6 pb-24 lg:pb-12">
+            <SupportView onBackToBus={() => setAppMode("bus")} />
+          </div>
+        </Suspense>
       )}
 
       {/* ========================================================= */}
@@ -1695,25 +1423,41 @@ export default function App() {
             <div className="flex items-center gap-2 overflow-hidden">
               <span className="flex h-2.5 w-2.5 relative shrink-0">
                 <span
-                  className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                    cityLiveBusesError ? "bg-amber-400" : "bg-emerald-400"
+                  className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                    cityLiveBusesSource === "live" ? "animate-ping" : ""
+                  } ${
+                    telemetryStatusTone === "emerald"
+                      ? "bg-emerald-400"
+                      : telemetryStatusTone === "amber"
+                        ? "bg-amber-400"
+                        : "bg-rose-400"
                   }`}
                 ></span>
                 <span
                   className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-                    cityLiveBusesError ? "bg-amber-500" : "bg-emerald-600"
+                    telemetryStatusTone === "emerald"
+                      ? "bg-emerald-600"
+                      : telemetryStatusTone === "amber"
+                        ? "bg-amber-500"
+                        : "bg-rose-600"
                   }`}
                 ></span>
               </span>
               <span className="text-slate-900 font-black tracking-wide shrink-0">
-                ● LIVE
+                {telemetryStatusLabel}
               </span>
               <span className="text-slate-700 font-bold text-[11px] truncate">
                 {cityLiveBusesLoading && cityLiveBuses.length === 0
                   ? "Loading live data..."
                   : cityLiveBusesError
-                  ? "Unable to fetch live data"
-                  : `${cityLiveBuses.length} buses receiving GPS • Updated ${lastTelemetryUpdate || "recently"}`}
+                    ? "Unable to fetch live data"
+                    : cityLiveBusesSource === "live"
+                      ? `${cityLiveBuses.length} live buses • Updated ${telemetryTimeLabel}`
+                      : cityLiveBusesSource === "cached"
+                        ? `${cityLiveBuses.length} cached buses • Last updated ${telemetryTimeLabel}`
+                        : cityLiveBusesSource === "fallback"
+                          ? `${cityLiveBuses.length} fallback buses`
+                          : "Live bus data unavailable"}
               </span>
             </div>
 
@@ -1730,8 +1474,9 @@ export default function App() {
                 type="button"
                 onClick={fetchCityLiveBuses}
                 disabled={cityLiveBusesLoading}
-                className="btn-3d btn-3d-light px-2.5 py-1 rounded-lg text-[10px] text-slate-700 font-bold disabled:opacity-40 shrink-0"
+                className="btn-3d btn-3d-light px-3.5 py-2 min-h-[40px] rounded-lg text-xs text-slate-700 font-bold disabled:opacity-40 shrink-0 flex items-center justify-center"
                 title="Refresh live telemetry now"
+                aria-label="Refresh live telemetry now"
               >
                 🔄 Refresh
               </button>
@@ -1786,7 +1531,8 @@ export default function App() {
             <button
               type="button"
               onClick={() => setCurrentView("nearbyStops")}
-              className="text-sm font-semibold text-slate-800 hover:text-red-600 transition flex items-center gap-1"
+              aria-label="View all nearby stops"
+              className="text-sm font-semibold text-slate-800 hover:text-red-600 transition flex items-center gap-1 min-h-[44px] py-1"
             >
               <span>📍 Nearby stops</span>
               <span className="text-xs text-slate-400">({allStops.length})</span>
@@ -1794,7 +1540,8 @@ export default function App() {
             <button
               type="button"
               onClick={() => setCurrentView("nearbyBuses")}
-              className="text-sm font-bold text-slate-900 hover:text-red-600 transition flex items-center gap-1"
+              aria-label="View nearby live buses"
+              className="text-sm font-bold text-slate-900 hover:text-red-600 transition flex items-center gap-1 min-h-[44px] py-1"
             >
               <span>Nearby Buses &gt;</span>
               <span className="inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
@@ -1852,6 +1599,7 @@ export default function App() {
                   <input
                     type="text"
                     value={sourceText}
+                    aria-label="Starting bus stop"
                     onChange={(e) => {
                       setSourceText(e.target.value);
                       setShowSourceDropdown(true);
@@ -1871,9 +1619,11 @@ export default function App() {
                         setFromStop(null);
                         setShowSourceDropdown(false);
                       }}
-                      className="text-xs text-slate-400 hover:text-black font-bold px-1"
+                      aria-label="Clear starting stop"
+                      title="Clear starting stop"
+                      className="flex h-9 w-9 items-center justify-center rounded-full text-xs text-slate-400 hover:text-black font-bold p-1 shrink-0"
                     >
-                      ✕
+                      ✖
                     </button>
                   )}
                 </div>
@@ -1908,10 +1658,11 @@ export default function App() {
                 <button
                   type="button"
                   onClick={handleSwapStops}
-                  className="btn-3d btn-3d-light flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-slate-700 shadow-xs"
-                  title="Swap From and To"
+                  className="btn-3d btn-3d-light flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-sm font-bold text-slate-700 shadow-xs"
+                  title="Swap starting stop and destination stop"
+                  aria-label="Swap starting stop and destination stop"
                 >
-                  ⇅
+                  ⇄
                 </button>
               </div>
 
@@ -1924,6 +1675,7 @@ export default function App() {
                   <input
                     type="text"
                     value={destText}
+                    aria-label="Destination bus stop"
                     onChange={(e) => {
                       setDestText(e.target.value);
                       setShowDestDropdown(true);
@@ -1943,9 +1695,11 @@ export default function App() {
                         setToStop(null);
                         setShowDestDropdown(false);
                       }}
-                      className="text-xs text-slate-400 hover:text-black font-bold px-1"
+                      aria-label="Clear destination stop"
+                      title="Clear destination stop"
+                      className="flex h-9 w-9 items-center justify-center rounded-full text-xs text-slate-400 hover:text-black font-bold p-1 shrink-0"
                     >
-                      ✕
+                      ✖
                     </button>
                   )}
                 </div>
@@ -1989,59 +1743,247 @@ export default function App() {
             {/* JOURNEY PLANNER RESULTS */}
             {routingSearched && (
               <div className="mt-4 pt-3 border-t border-slate-100">
-                {journeyRoutes.length > 0 ? (
-                  <div className="space-y-2">
-                    <p className="text-[11px] font-black uppercase text-slate-400">
-                      Direct JCTSL Routes ({journeyRoutes.length}):
-                    </p>
-                    {journeyRoutes.map((r, idx) => (
-                      <div
-                        key={r.route_id || idx}
-                        onClick={() => openRouteSearch(r)}
-                        className="card-3d-interactive flex items-center justify-between p-3.5 rounded-2xl border border-slate-200 shadow-xs"
-                      >
-                        <div className="flex-1 pr-2">
-                          <div className="flex items-center gap-2">
-                            <span className="rounded-md bg-red-600 px-2 py-0.5 text-xs font-black text-white shrink-0 shadow-2xs">
-                              {r.route_orgno || r.route_id}
+                {/* DIRECT ROUTES RESULTS */}
+                {routingLoading ? (
+                  <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-red-100 bg-red-50/60 px-4 py-8 text-center">
+                    <div className="relative flex h-14 w-full max-w-xs items-center overflow-hidden rounded-full bg-white shadow-inner">
+                      <div className="absolute inset-y-0 left-0 w-full animate-pulse rounded-full bg-red-50"></div>
+                      <span className="relative z-10 inline-block text-3xl" style={{ animation: "jblBusTravel 1.8s ease-in-out infinite alternate" }}>🚌</span>
+                      <span className="absolute right-3 text-lg animate-pulse">📍</span>
+                    </div>
+                    <p className="text-xs font-black uppercase tracking-wider text-red-700">Searching Bus Routes...</p>
+                    <p className="text-[10px] font-medium text-slate-500">Checking direct buses and connecting journeys</p>
+                    <style>{`@keyframes jblBusTravel { from { transform: translateX(0); } to { transform: translateX(180px); } }`}</style>
+                  </div>
+                ) : journeyRoutes.length > 0 ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                        Direct JCTSL Routes ({journeyRoutes.length}):
+                      </p>
+                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        Verified Order
+                      </span>
+                    </div>
+                    {journeyRoutes.map((r, idx) => {
+                      const isExpanded = expandedRouteKey === (r.route_id || idx);
+                      return (
+                        <div
+                          key={r.route_id || idx}
+                          className="card-3d p-3.5 rounded-2xl border border-slate-200 shadow-xs space-y-2.5"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="rounded-md bg-red-600 px-2.5 py-0.5 text-xs font-black text-white shrink-0 shadow-2xs">
+                                  {r.route_orgno || r.route_id}
+                                </span>
+                                <span className="font-bold text-xs text-slate-900 line-clamp-1">
+                                  {r.route_name}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-600 mt-1 font-medium flex items-center flex-wrap gap-1">
+                                <span className="text-slate-900 font-bold">{r.from_stop_matched}</span>
+                                <span className="text-slate-400">→</span>
+                                <span className="text-slate-900 font-bold">{r.to_stop_matched}</span>
+                                <span className="text-slate-400">•</span>
+                                <span className="font-semibold text-slate-500">{r.intermediate_stops_count} stops</span>
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => openRouteSearch(r)}
+                              className="btn-3d btn-3d-red px-3 py-1.5 rounded-xl text-xs font-black text-white shrink-0 shadow-xs"
+                            >
+                              Track ›
+                            </button>
+                          </div>
+
+                          {/* LIVE BUS TELEMETRY & VEHICLE NUMBERS */}
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-1.5">
+                            {r.live_buses_count > 0 ? (
+                              <div className="flex items-center flex-wrap gap-1.5">
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                  {r.live_buses_count} Active Bus{r.live_buses_count > 1 ? "es" : ""}:
+                                </span>
+                                {r.live_buses.map((b) => (
+                                  <span
+                                    key={b.vehicle_number}
+                                    className="text-[10px] font-black text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200"
+                                  >
+                                    {b.vehicle_number}
+                                    {typeof b.speed === "number" && b.speed > 0 ? (
+                                      <span className="text-emerald-600 font-bold ml-1">({Math.round(b.speed)} km/h)</span>
+                                    ) : null}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-[10px] font-medium text-slate-400">
+                                ⚪ 0 live GPS transmitting (Route verified in schedule)
+                              </span>
+                            )}
+
+                            {Array.isArray(r.traversal_stops) && r.traversal_stops.length > 2 && (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedRouteKey(isExpanded ? null : (r.route_id || idx))}
+                                className="text-[10px] font-bold text-rose-600 hover:text-rose-700 ml-auto"
+                              >
+                                {isExpanded ? "Hide stops ▲" : `View ${r.intermediate_stops_count} stops ▼`}
+                              </button>
+                            )}
+                          </div>
+
+                          {/* EXPANDABLE INTERMEDIATE STOPS TIMELINE */}
+                          {isExpanded && Array.isArray(r.traversal_stops) && (
+                            <div className="mt-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[10px] space-y-1.5 max-h-48 overflow-y-auto">
+                              <p className="font-bold text-slate-700 uppercase tracking-wider text-[9px]">
+                                Stop Sequence ({r.traversal_stops.length} stops):
+                              </p>
+                              <div className="space-y-1 pl-1">
+                                {r.traversal_stops.map((st, stIdx) => {
+                                  const isFirst = stIdx === 0;
+                                  const isLast = stIdx === r.traversal_stops.length - 1;
+                                  return (
+                                    <div key={stIdx} className="flex items-center gap-2">
+                                      <span className={`w-2 h-2 rounded-full shrink-0 ${isFirst ? "bg-emerald-500" : isLast ? "bg-rose-500" : "bg-slate-300"}`}></span>
+                                      <span className={`${isFirst || isLast ? "font-bold text-slate-900" : "text-slate-600"}`}>
+                                        {st.name || st.bus_stop}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : connectingJourneys.length > 0 ? (
+                  /* CONNECTING JOURNEYS RESULTS (1 TRANSFER) */
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-[11px] font-black uppercase tracking-wider text-amber-700">
+                        Connecting Journeys ({connectingJourneys.length}) — 1 Transfer:
+                      </p>
+                      <p className="text-[10px] text-slate-500 font-medium">
+                        No direct bus found. Travel via a verified interchange stop:
+                      </p>
+                    </div>
+                    {connectingJourneys.map((c, idx) => {
+                      return (
+                        <div
+                          key={idx}
+                          className="card-3d p-3.5 rounded-2xl border border-amber-200 bg-amber-50/20 shadow-xs space-y-3"
+                        >
+                          {/* TRANSFER SUMMARY HEADER */}
+                          <div className="flex items-center justify-between pb-2 border-b border-amber-100">
+                            <span className="text-[10px] font-black uppercase text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-300">
+                              🔄 Transfer at {c.transfer_stop.name}
                             </span>
-                            <span className="font-bold text-xs text-slate-900 line-clamp-1">
-                              {r.route_name}
+                            <span className="text-[10px] font-bold text-slate-500">
+                              {c.total_stops_count} Total Stops
+                              {c.total_live_buses_count > 0 && (
+                                <span className="text-emerald-600 font-bold ml-1">
+                                  • {c.total_live_buses_count} Live Bus{c.total_live_buses_count > 1 ? "es" : ""}
+                                </span>
+                              )}
                             </span>
                           </div>
-                          <p className="text-[10px] text-slate-500 mt-1 font-medium">
-                            {r.from_stop_matched && r.to_stop_matched ? (
-                              <>
-                                <span className="text-slate-800 font-bold">{r.from_stop_matched}</span>
-                                {" → "}
-                                <span className="text-slate-800 font-bold">{r.to_stop_matched}</span>
-                                <span> • {r.intermediate_stops_count} stops</span>
-                              </>
-                            ) : (
-                              "Direction verified in JCTSL sequence"
+
+                          {/* LEG 1 */}
+                          <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <span className="bg-red-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded">
+                                  Leg 1: {c.leg1.route_orgno}
+                                </span>
+                                <span className="text-xs font-bold text-slate-900 line-clamp-1">
+                                  {c.leg1.route_name}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => openRouteSearch({ route_id: c.leg1.route_id, route_orgno: c.leg1.route_orgno, route_name: c.leg1.route_name })}
+                                className="text-[10px] font-bold text-rose-600 hover:text-rose-700"
+                              >
+                                View Leg 1 ›
+                              </button>
+                            </div>
+                            <p className="text-[10px] text-slate-600 font-medium">
+                              <span className="font-bold text-slate-800">{c.leg1.from_stop}</span>
+                              {" → "}
+                              <span className="font-bold text-amber-800">{c.leg1.transfer_stop}</span>
+                              <span className="text-slate-400"> ({c.leg1.intermediate_stops_count} stops)</span>
+                            </p>
+                            {c.leg1.live_buses_count > 0 && (
+                              <div className="flex items-center flex-wrap gap-1 text-[9px] text-emerald-700 font-semibold">
+                                <span>🟢 {c.leg1.live_buses_count} live:</span>
+                                {c.leg1.live_buses.map((b) => (
+                                  <span key={b.vehicle_number} className="bg-emerald-50 px-1 rounded border border-emerald-200">
+                                    {b.vehicle_number}
+                                  </span>
+                                ))}
+                              </div>
                             )}
-                            {r.live_buses_count > 0 ? (
-                              <span className="ml-1 text-emerald-600 font-bold">
-                                • {r.live_buses_count} Live Bus{r.live_buses_count > 1 ? "es" : ""}
-                              </span>
-                            ) : (
-                              <span className="ml-1 text-slate-400">• 0 live GPS transmitting</span>
+                          </div>
+
+                          {/* TRANSFER INDICATOR */}
+                          <div className="text-center text-[10px] font-bold text-amber-700 py-0.5">
+                            ↓ Change buses at {c.transfer_stop.name}
+                          </div>
+
+                          {/* LEG 2 */}
+                          <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <span className="bg-blue-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded">
+                                  Leg 2: {c.leg2.route_orgno}
+                                </span>
+                                <span className="text-xs font-bold text-slate-900 line-clamp-1">
+                                  {c.leg2.route_name}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => openRouteSearch({ route_id: c.leg2.route_id, route_orgno: c.leg2.route_orgno, route_name: c.leg2.route_name })}
+                                className="text-[10px] font-bold text-blue-600 hover:text-blue-700"
+                              >
+                                View Leg 2 ›
+                              </button>
+                            </div>
+                            <p className="text-[10px] text-slate-600 font-medium">
+                              <span className="font-bold text-amber-800">{c.leg2.transfer_stop}</span>
+                              {" → "}
+                              <span className="font-bold text-slate-800">{c.leg2.to_stop}</span>
+                              <span className="text-slate-400"> ({c.leg2.intermediate_stops_count} stops)</span>
+                            </p>
+                            {c.leg2.live_buses_count > 0 && (
+                              <div className="flex items-center flex-wrap gap-1 text-[9px] text-emerald-700 font-semibold">
+                                <span>🟢 {c.leg2.live_buses_count} live:</span>
+                                {c.leg2.live_buses.map((b) => (
+                                  <span key={b.vehicle_number} className="bg-emerald-50 px-1 rounded border border-emerald-200">
+                                    {b.vehicle_number}
+                                  </span>
+                                ))}
+                              </div>
                             )}
-                          </p>
+                          </div>
                         </div>
-                        <span className="btn-3d btn-3d-red px-3 py-1 rounded-lg text-xs font-black text-white shrink-0">
-                          Track ›
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
+                  /* NO DIRECT OR CONNECTING ROUTES FOUND */
                   <div className="p-4 text-center rounded-2xl bg-slate-50 border border-slate-200">
                     <p className="text-xs font-bold text-slate-700">
-                      {routingMessage || "No direct JCTSL route found"}
+                      {routingMessage || "No direct or connecting JCTSL routes found"}
                     </p>
                     <p className="text-[10px] text-slate-400 mt-1">
-                      No single JCTSL bus connects these two stops in this direction.
+                      Neither a single bus nor a 1-transfer connection connects these two stops in this direction in the JCTSL network.
                     </p>
                   </div>
                 )}
@@ -2068,7 +2010,8 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setAppMode("emergency")}
-                className="text-[10px] font-black text-rose-600 hover:underline"
+                aria-label="Open Emergency SOS Hub"
+                className="text-xs font-black text-rose-600 hover:underline min-h-[44px] inline-flex items-center px-2 py-1"
               >
                 SOS Hub ›
               </button>
@@ -2077,21 +2020,24 @@ export default function App() {
             <div className="grid grid-cols-3 gap-2">
               <a
                 href="tel:112"
-                className="btn-3d btn-3d-red py-2.5 px-2 rounded-xl text-center text-xs font-black flex flex-col items-center justify-center no-underline"
+                aria-label="Call 112 Police Emergency SOS"
+                className="btn-3d btn-3d-red py-3 px-2 min-h-[48px] rounded-xl text-center text-xs font-black flex flex-col items-center justify-center no-underline"
               >
                 <span>🚨 112</span>
                 <span className="text-[9px] font-bold text-rose-100 mt-0.5">Police SOS</span>
               </a>
               <a
                 href="tel:108"
-                className="btn-3d btn-3d-emerald py-2.5 px-2 rounded-xl text-center text-xs font-black flex flex-col items-center justify-center no-underline"
+                aria-label="Call 108 Ambulance Emergency"
+                className="btn-3d btn-3d-emerald py-3 px-2 min-h-[48px] rounded-xl text-center text-xs font-black flex flex-col items-center justify-center no-underline"
               >
                 <span>🚑 108</span>
                 <span className="text-[9px] font-bold text-emerald-100 mt-0.5">Ambulance</span>
               </a>
               <a
                 href="tel:101"
-                className="btn-3d btn-3d-orange py-2.5 px-2 rounded-xl text-center text-xs font-black flex flex-col items-center justify-center no-underline"
+                aria-label="Call 101 Fire Emergency"
+                className="btn-3d btn-3d-orange py-3 px-2 min-h-[48px] rounded-xl text-center text-xs font-black flex flex-col items-center justify-center no-underline"
               >
                 <span>🚒 101</span>
                 <span className="text-[9px] font-bold text-orange-100 mt-0.5">Fire</span>
@@ -2102,44 +2048,7 @@ export default function App() {
           {/* ========================================================= */}
           {/* JBL SUPPORT SECTION (PREMIUM 3D)                          */}
           {/* ========================================================= */}
-          <section className="mt-5 card-3d p-5 text-center space-y-3">
-            <div className="flex items-center justify-center gap-1.5">
-              <span className="text-base select-none">❤️</span>
-              <h2 className="text-sm font-black text-slate-900 tracking-tight">
-                Help Us Make JBL Better
-              </h2>
-            </div>
-            <p className="text-xs font-semibold text-slate-600">
-              Scan the QR code to support JBL.
-            </p>
 
-            <div className="flex justify-center py-1">
-              <div className="card-3d-dark p-3 rounded-2xl shadow-xl inline-block border border-slate-700/80">
-                <img
-                  src="/assets/jbl-support-qr.png"
-                  alt="Support JBL QR Code"
-                  width="200"
-                  height="200"
-                  className="w-48 h-48 sm:w-52 sm:h-52 object-contain rounded-xl block select-none"
-                  loading="lazy"
-                />
-              </div>
-            </div>
-
-            <div className="inline-block px-3.5 py-1 rounded-full bg-rose-50 border border-rose-200 text-xs font-black text-rose-700 shadow-2xs">
-              {/* Even ₹1 helps. */}
-            </div>
-
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={() => setAppMode("support")}
-                className="btn-3d btn-3d-dark py-2.5 px-5 rounded-xl text-xs font-black"
-              >
-                ❤️ Support JBL
-              </button>
-            </div>
-          </section>
         </main>
       )}
 
@@ -2147,740 +2056,159 @@ export default function App() {
       {/* 4. VIEW: NEARBY STOPS (ALL 366 REAL JCTSL STOPS)          */}
       {/* ========================================================= */}
       {appMode === "bus" && currentView === "nearbyStops" && (
-        <div className="w-full flex-1 bg-white max-w-md mx-auto px-4 py-3">
-          {/* Header */}
-          <div className="flex items-center gap-3 border-b border-slate-100 pb-3 mb-3">
-            <button
-              type="button"
-              onClick={backToHome}
-              className="text-2xl font-bold text-black hover:opacity-70 leading-none"
-            >
-              ‹
-            </button>
-            <h1 className="text-base font-black text-black">
-              Nearby Bus Stops ({allStops.length})
-            </h1>
-          </div>
-
-          {/* Search Stops Input */}
-          <div className="relative mb-3">
-            <input
-              type="text"
-              value={stopsSearchQuery}
-              onChange={(e) => setStopsSearchQuery(e.target.value)}
-              placeholder="Search stops by name or code (e.g. Kelgiri, Airport)"
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-bold text-black outline-none focus:border-red-500 focus:bg-white"
-              autoFocus
-            />
-            {stopsSearchQuery && (
-              <button
-                type="button"
-                onClick={() => setStopsSearchQuery("")}
-                className="absolute right-3 top-2.5 text-xs font-bold text-slate-400 hover:text-black"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-
-          {/* Stops List */}
-          <div className="space-y-2 pb-16">
-            {(() => {
-              const q = stopsSearchQuery.trim().toLowerCase();
-              const filtered = allStops.filter((s) => {
-                if (!q) return true;
-                const name = (s.bus_stop_name || "").toLowerCase();
-                const code = (s.bus_stop_code || "").toLowerCase();
-                return name.includes(q) || code.includes(q);
-              });
-
-              if (filtered.length === 0) {
-                return (
-                  <div className="py-8 text-center text-xs font-bold text-slate-500">
-                    No matching JCTSL bus stop found.
-                  </div>
-                );
-              }
-
-              return filtered.map((stop, idx) => {
-                const distKm = hasUserLocation
-                  ? calculateDistanceKm(
-                      location.lat,
-                      location.lng,
-                      parseFloat(stop.latitude),
-                      parseFloat(stop.longitude)
-                    )
-                  : null;
-
-                return (
-                  <div
-                    key={stop.bus_stop_code || idx}
-                    className="flex items-center justify-between rounded-2xl border border-slate-200 p-3 hover:border-slate-300 bg-slate-50/50 transition"
-                  >
-                    <div className="min-w-0 pr-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-xs text-slate-900 truncate">
-                          {stop.bus_stop_name}
-                        </span>
-                        {stop.bus_stop_code && (
-                          <span className="rounded-md bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-700 shrink-0">
-                            {stop.bus_stop_code}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-slate-400 mt-0.5">
-                        {distKm !== null ? `${formatDistance(distKm)} away` : `Stop #${idx + 1}`} • Lat: {stop.latitude?.slice(0, 7)}, Lng: {stop.longitude?.slice(0, 7)}
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => openStopDetails(stop)}
-                      className="rounded-xl bg-black px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-800 shrink-0 transition"
-                    >
-                      View Live
-                    </button>
-                  </div>
-                );
-              });
-            })()}
-          </div>
-        </div>
+        <Suspense
+          fallback={
+            <div className="w-full flex-1 bg-white p-8 text-center text-sm font-bold text-slate-500">
+              Loading Nearby Stops...
+            </div>
+          }
+        >
+          <NearbyStopsView
+            backToHome={backToHome}
+            allStops={allStops}
+            stopsSearchQuery={stopsSearchQuery}
+            setStopsSearchQuery={setStopsSearchQuery}
+            hasUserLocation={hasUserLocation}
+            location={location}
+            openStopDetails={openStopDetails}
+          />
+        </Suspense>
       )}
 
       {/* ========================================================= */}
       {/* 5. VIEW: NEARBY LIVE BUSES                                */}
       {/* ========================================================= */}
       {appMode === "bus" && currentView === "nearbyBuses" && (
-        <div className="w-full flex-1 bg-white max-w-md mx-auto px-4 py-3">
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={backToHome}
-                className="text-2xl font-bold text-black hover:opacity-70 leading-none"
-              >
-                ‹
-              </button>
-              <h1 className="text-base font-black text-black">
-                Nearby Live Buses ({cityLiveBuses.length})
-              </h1>
+        <Suspense
+          fallback={
+            <div className="w-full flex-1 bg-white p-8 text-center text-sm font-bold text-slate-500">
+              Loading Nearby Live Buses...
             </div>
-            <span className="text-[10px] font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
-              ● LIVE
-            </span>
-          </div>
-
-          {/* Search Filter */}
-          <div className="relative mb-3">
-            <input
-              type="text"
-              value={busesSearchQuery}
-              onChange={(e) => setBusesSearchQuery(e.target.value)}
-              placeholder="Search by registration (e.g. RJ14) or route (e.g. 6A)"
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-bold text-black outline-none focus:border-red-500 focus:bg-white"
-            />
-            {busesSearchQuery && (
-              <button
-                type="button"
-                onClick={() => setBusesSearchQuery("")}
-                className="absolute right-3 top-2.5 text-xs font-bold text-slate-400 hover:text-black"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-
-          {/* Live Buses Cards */}
-          <div className="space-y-2 pb-16">
-            {(() => {
-              const q = busesSearchQuery.trim().toLowerCase();
-              const filtered = cityLiveBuses.filter((b) => {
-                if (!q) return true;
-                const v = (b.vehno || "").toLowerCase();
-                const r = (b.rno || "").toLowerCase();
-                return v.includes(q) || r.includes(q);
-              });
-
-              if (filtered.length === 0) {
-                return (
-                  <div className="py-8 text-center text-xs font-bold text-slate-500">
-                    No live buses matching query.
-                  </div>
-                );
-              }
-
-              return filtered.map((bus, idx) => {
-                const lat = parseFloat(bus.curlat);
-                const lng = parseFloat(bus.curlong);
-                const nearestCtx = findBusStopContext(lat, lng, allStops);
-                const busStatus = getBusStatus(bus);
-
-                return (
-                  <div
-                    key={bus.vehno || idx}
-                    className="rounded-2xl border border-slate-200 p-3 bg-slate-50/60 shadow-xs"
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">🚌</span>
-                        <span className="font-black text-xs text-black">
-                          {bus.vehno}
-                        </span>
-                        {bus.rno && (
-                          <span className="rounded-md bg-red-600 px-1.5 py-0.5 text-[10px] font-black text-white">
-                            Route {bus.rno}
-                          </span>
-                        )}
-                      </div>
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${getBusStatusClasses(busStatus)}`}>
-                        {busStatus}
-                      </span>
-                    </div>
-
-                    <div className="text-[11px] text-slate-600 space-y-0.5 mt-2">
-                      <p>
-                        Current / Nearby: <b>{nearestCtx.nearestStop}</b> ({formatDistance(nearestCtx.distanceKm)})
-                      </p>
-                      {nearestCtx.nextStop && (
-                        <p>
-                          Next Stop: <b>{nearestCtx.nextStop}</b>
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCurrentView("home");
-                          setTimeout(() => {
-                            if (mapInstance.current && !isNaN(lat) && !isNaN(lng)) {
-                              mapInstance.current.setView([lat, lng], 16);
-                            }
-                          }, 100);
-                        }}
-                        className="flex-1 rounded-xl bg-white border border-slate-200 py-1.5 text-xs font-bold text-slate-800 hover:bg-slate-100 transition text-center"
-                      >
-                        Locate on Map
-                      </button>
-                      <button
-                        type="button"
-                        disabled={!busStatus.startsWith("LIVE ·")}
-                        onClick={() => {
-                          const vehicleNumber = String(bus.vehno || "").trim();
-                          setSelectedBusNumber(vehicleNumber);
-                          setFollowSelectedBus((following) =>
-                            following && selectedBusNumber === vehicleNumber
-                              ? false
-                              : true
-                          );
-                          setCurrentView("home");
-                        }}
-                        className="flex-1 rounded-xl border border-blue-200 bg-blue-50 py-1.5 text-xs font-bold text-blue-800 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {followSelectedBus &&
-                        selectedBusNumber === String(bus.vehno || "").trim()
-                          ? "Stop Following"
-                          : "Follow Bus"}
-                      </button>
-                      {bus.rno && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const rMatch = availableRoutes.find(
-                              (r) => cleanRouteCode(r.route_orgno) === cleanRouteCode(bus.rno)
-                            );
-                            if (rMatch) openRouteSearch(rMatch);
-                          }}
-                          className="flex-1 rounded-xl bg-black py-1.5 text-xs font-bold text-white hover:bg-slate-800 transition text-center"
-                        >
-                          View Route
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              });
-            })()}
-          </div>
-        </div>
+          }
+        >
+          <NearbyBusesView
+            backToHome={backToHome}
+            cityLiveBuses={cityLiveBuses}
+            busesSearchQuery={busesSearchQuery}
+            setBusesSearchQuery={setBusesSearchQuery}
+            allStops={allStops}
+            mapInstance={mapInstance}
+            setSelectedBusNumber={setSelectedBusNumber}
+            setFollowSelectedBus={setFollowSelectedBus}
+            setCurrentView={setCurrentView}
+            followSelectedBus={followSelectedBus}
+            availableRoutes={availableRoutes}
+            openRouteSearch={openRouteSearch}
+          />
+        </Suspense>
       )}
 
       {/* ========================================================= */}
       {/* 6. VIEW: ROUTE SEARCH & TIMELINE (MATCHES SCREENSHOT 2)    */}
       {/* ========================================================= */}
       {appMode === "bus" && currentView === "routeSearch" && (
-        <div className="w-full flex-1 bg-white text-slate-900 max-w-md mx-auto">
-          {/* TOP HEADER MATCHING SCREENSHOT 2 */}
-          <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-100">
-            <button
-              type="button"
-              onClick={backToHome}
-              className="p-1 text-black font-bold text-2xl hover:opacity-70 active:scale-95 transition flex items-center justify-center leading-none"
-              title="Back to Home"
-            >
-              ‹
-            </button>
-            <h1 className="text-lg font-black text-black tracking-tight">
-              Route Search with Live Bus
-            </h1>
-          </div>
-
-          {/* SEARCH INPUT BAR */}
-          <div className="px-4 pt-3 pb-2 relative">
-            <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3.5 py-3 shadow-xs">
-              <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                {/* Route Flag-Pin SVG */}
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 28 28"
-                  fill="none"
-                  className="shrink-0"
-                >
-                  <path
-                    d="M6 4v16"
-                    stroke="#e11d48"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
-                  <path d="M6 5h8l-1.5 3.5L14 12H6z" fill="#e11d48" />
-                  <path
-                    d="M7 17c3 2 6 3 10 1"
-                    stroke="#94a3b8"
-                    strokeWidth="2"
-                    strokeDasharray="2 3"
-                    strokeLinecap="round"
-                  />
-                  <circle cx="20" cy="18" r="3.5" fill="#e11d48" />
-                  <circle cx="20" cy="18" r="1.5" fill="white" />
-                </svg>
-                <span className="text-red-600 font-black text-base select-none">
-                  |
-                </span>
-
-                {selectedUniversalRoute ? (
-                  <span className="text-sm font-black uppercase text-black truncate tracking-wide">
-                    {selectedUniversalRoute.route_orgno || selectedUniversalRoute.route_id} -{" "}
-                    {selectedUniversalRoute.route_name}
-                  </span>
-                ) : (
-                  <input
-                    type="text"
-                    value={universalSearchQuery}
-                    onChange={(e) => {
-                      setUniversalSearchQuery(e.target.value);
-                      setShowUniversalDropdown(true);
-                    }}
-                    onFocus={() => setShowUniversalDropdown(true)}
-                    placeholder="Search route (6a, ac7, e3, airport)"
-                    className="w-full bg-transparent text-sm font-bold text-black outline-none placeholder:text-slate-400"
-                    autoFocus
-                  />
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedUniversalRoute(null);
-                  setUniversalRouteMap(null);
-                  setUniversalLiveBuses([]);
-                  setUniversalSearchQuery("");
-                  setShowUniversalDropdown(true);
-                }}
-                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-black text-white text-[10px] font-black hover:opacity-80 transition ml-2"
-                title="Clear route"
-              >
-                ✕
-              </button>
+        <Suspense
+          fallback={
+            <div className="w-full flex-1 bg-white p-8 text-center text-sm font-bold text-slate-500">
+              Loading Route Search...
             </div>
-
-            {/* SEARCH AUTOCOMPLETE DROPDOWN */}
-            {showUniversalDropdown && !selectedUniversalRoute && (
-              <div className="absolute left-4 right-4 top-full mt-1.5 rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl z-[500] max-h-80 overflow-y-auto">
-                {(() => {
-                  const results = getUniversalSearchResults(universalSearchQuery);
-
-                  if (!results.hasQuery) {
-                    const distinctRouteOrgs = [
-                      ...new Set(availableRoutes.map((r) => r.route_orgno).filter(Boolean)),
-                    ];
-
-                    return (
-                      <div className="p-1">
-                        <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-2">
-                          Available JCTSL Routes ({distinctRouteOrgs.length}):
-                        </p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {distinctRouteOrgs.map((orgNo) => {
-                            const sampleRoute = availableRoutes.find(
-                              (r) => r.route_orgno === orgNo
-                            );
-                            return (
-                              <button
-                                key={orgNo}
-                                type="button"
-                                onClick={() => handleSelectRouteDirection(sampleRoute)}
-                                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-black text-slate-800 hover:border-red-500 hover:bg-red-50 hover:text-red-700 transition"
-                              >
-                                Route {orgNo}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  const hasRoutes = results.routeGroups.length > 0;
-                  const hasBuses = results.busMatches.length > 0;
-
-                  if (!hasRoutes && !hasBuses) {
-                    return (
-                      <div className="p-4 text-center text-xs font-bold text-slate-500">
-                        No matching JCTSL route or bus found.
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div className="space-y-3">
-                      {hasRoutes && (
-                        <div>
-                          <p className="text-[10px] font-black uppercase text-red-600 mb-1.5">
-                            Matching Routes ({results.routeGroups.length}):
-                          </p>
-                          <div className="space-y-2">
-                            {results.routeGroups.map((grp) => (
-                              <div
-                                key={grp.route_orgno}
-                                className="rounded-xl border border-slate-200 p-2.5 bg-slate-50/50"
-                              >
-                                <div className="flex items-center justify-between mb-1.5">
-                                  <span className="rounded-md bg-red-600 px-2 py-0.5 text-xs font-black text-white">
-                                    Route {grp.route_orgno}
-                                  </span>
-                                  <span className="text-[10px] text-slate-400 font-bold">
-                                    {grp.directions.length} Direction{grp.directions.length === 1 ? "" : "s"}
-                                  </span>
-                                </div>
-
-                                {/* Both available directions shown separately! */}
-                                <div className="space-y-1">
-                                  {grp.directions.map((dirRoute) => (
-                                    <div
-                                      key={dirRoute.route_id}
-                                      onClick={() => handleSelectRouteDirection(dirRoute)}
-                                      className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200/80 hover:border-red-500 hover:bg-red-50 cursor-pointer transition text-xs"
-                                    >
-                                      <span className="font-bold text-slate-900 truncate pr-2">
-                                        {dirRoute.route_name}
-                                      </span>
-                                      <span className="font-black text-red-600 shrink-0">
-                                        Select ›
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {hasBuses && (
-                        <div>
-                          <p className="text-[10px] font-black uppercase text-green-700 mb-1.5">
-                            Live Vehicles:
-                          </p>
-                          {results.busMatches.map((bus, idx) => (
-                            <div
-                              key={bus.vehno || idx}
-                              onClick={() => {
-                                const rMatch = availableRoutes.find(
-                                  (r) => cleanRouteCode(r.route_orgno) === cleanRouteCode(bus.rno)
-                                );
-                                if (rMatch) handleSelectRouteDirection(rMatch);
-                              }}
-                              className="flex items-center justify-between p-2 hover:bg-green-50 rounded-xl cursor-pointer text-xs"
-                            >
-                              <span className="font-bold text-slate-900">
-                                🚌 {bus.vehno} {bus.rno ? `(Route ${bus.rno})` : ""}
-                              </span>
-                              <span className="font-bold text-green-700">Track ›</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-          </div>
-
-          {/* ======================================================= */}
-          {/* DIRECTION SWITCHER BAR (SEPARATE DIRECTIONS SELECTOR)   */}
-          {/* ======================================================= */}
-          {selectedUniversalRoute && routeDirections.length > 0 && (
-            <div className="px-4 py-2 bg-slate-50 border-y border-slate-200">
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
-                Available Directions:
-              </p>
-              <div className="flex flex-col gap-1.5">
-                {routeDirections.map((dirRoute) => {
-                  const isActive =
-                    String(dirRoute.route_id) === String(selectedUniversalRoute.route_id);
-                  return (
-                    <button
-                      key={dirRoute.route_id}
-                      type="button"
-                      onClick={() => handleSelectRouteDirection(dirRoute)}
-                      className={`btn-3d w-full flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition text-left ${
-                        isActive
-                          ? "btn-3d-red text-white shadow-xs"
-                          : "btn-3d-light text-slate-800"
-                      }`}
-                    >
-                      <span className="truncate pr-2">
-                        {dirRoute.route_name}
-                      </span>
-                      <span
-                        className={`text-[10px] font-black shrink-0 ${
-                          isActive ? "text-white" : "text-red-600"
-                        }`}
-                      >
-                        {isActive ? "● Active" : "Switch ⇅"}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Status Banner */}
-              <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-200/80 text-[11px] font-bold text-slate-600">
-                <span>
-                  {universalRouteMap?.bus_stop_list?.length || 0} stops •{" "}
-                  {universalLiveBuses.length > 0 ? (
-                    <span className="text-emerald-700 font-extrabold">
-                      {universalLiveBuses.length} active live bus{universalLiveBuses.length === 1 ? "" : "es"}
-                    </span>
-                  ) : (
-                    <span className="text-slate-500 font-medium">
-                      0 active live buses (Live bus unavailable right now)
-                    </span>
-                  )}
-                </span>
-                <span className="text-green-700 font-bold">
-                  ● LIVE • {secondsSinceUpdate < 5 ? "Just now" : `${secondsSinceUpdate}s ago`}
-                </span>
-              </div>
-
-              {universalLiveBuses.length === 0 && (
-                <div className="mt-2 flex items-center gap-2 rounded-xl bg-amber-50/90 border border-amber-200/70 px-3 py-1.5 text-[11px] text-amber-900">
-                  <span className="text-sm">ℹ️</span>
-                  <span>No live buses are currently transmitting GPS for this route (off-peak / depot). Showing verified JCTSL route stops.</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ======================================================= */}
-          {/* ROUTE TIMELINE (SCREENSHOT 2: PERFECT STRAIGHT LINE)    */}
-          {/* ======================================================= */}
-          {universalRouteLoading ? (
-            <div className="py-20 text-center text-slate-500">
-              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-3 border-blue-600 border-t-transparent"></div>
-              <p className="mt-3 text-sm font-bold">Loading route stops & live buses...</p>
-            </div>
-          ) : universalRouteMap?.bus_stop_list?.length > 0 ? (
-            <div className="timeline-full-container">
-              {/* Continuous 3px straight vertical line */}
-              <div className="timeline-vertical-line" />
-
-              {(() => {
-                const orderedStops = universalRouteMap.bus_stop_list;
-                const totalStops = orderedStops.length;
-
-                // Group live buses by their nearest stop index along this straight route
-                const busesByStop = {};
-                universalLiveBuses.forEach((bus) => {
-                  let idx = bus.nearestIndex;
-                  if (idx === undefined || idx === null || idx < 0 || idx >= totalStops) {
-                    const ctx = findBusStopContext(
-                      bus.latitude,
-                      bus.longitude,
-                      orderedStops
-                    );
-                    idx = ctx.nearestIndex;
-                  }
-                  if (idx >= 0 && idx < totalStops) {
-                    if (!busesByStop[idx]) busesByStop[idx] = [];
-                    busesByStop[idx].push(bus);
-                  }
-                });
-
-                return orderedStops.map((st, idx) => {
-                  const isStart = idx === 0;
-                  const isEnd = idx === totalStops - 1;
-                  const stopBusesAtNode = busesByStop[idx] || [];
-
-                  return (
-                    <div key={`stop-${idx}`} className="w-full">
-                      {/* Stop Node on the Line */}
-                      <div
-                        onClick={() => {
-                          if (mapInstance.current) {
-                            const lat = parseFloat(st.latitude);
-                            const lng = parseFloat(st.longitude);
-                            if (!isNaN(lat) && !isNaN(lng) && lat !== 0) {
-                              mapInstance.current.setView([lat, lng], 16);
-                            }
-                          }
-                        }}
-                        className="timeline-stop-item"
-                      >
-                        <div className="timeline-marker-anchor">
-                          {isStart ? (
-                            <div className="timeline-marker-start" />
-                          ) : isEnd ? (
-                            <div className="timeline-marker-end" />
-                          ) : (
-                            <div className="timeline-marker-intermediate">↓</div>
-                          )}
-                        </div>
-
-                        <span className="text-sm font-bold uppercase tracking-tight text-black select-none truncate">
-                          {st.bus_stop || st.bus_stop_name || st.stop_name}
-                        </span>
-                      </div>
-
-                      {/* Live Buses along this stop */}
-                      {stopBusesAtNode.map((bus, bIdx) => {
-                        const busStatus = getBusStatus(bus);
-                        const speedLabel = getBusSpeedLabel(bus);
-                        return (
-                          <div
-                            key={`bus-${bus.vehicle_number || bIdx}`}
-                            className="timeline-bus-item"
-                          >
-                            <div className="timeline-marker-anchor">
-                              <div
-                                className="timeline-bus-marker"
-                                style={{
-                                  borderColor: bus.veh_color || "#16a34a",
-                                  color: bus.veh_color || "#16a34a",
-                                }}
-                              >
-                                🚌
-                              </div>
-                            </div>
-
-                            <div
-                              onClick={() => {
-                                if (mapInstance.current && !isNaN(bus.latitude) && !isNaN(bus.longitude)) {
-                                  setCurrentView("home");
-                                  setTimeout(() => {
-                                    if (mapInstance.current) {
-                                      mapInstance.current.setView([bus.latitude, bus.longitude], 16);
-                                    }
-                                  }, 100);
-                                }
-                              }}
-                              className="flex flex-col sm:flex-row sm:items-center justify-between w-full bg-slate-50 border border-slate-200/90 hover:border-green-500 rounded-xl px-3 py-2 ml-2 shadow-xs cursor-pointer transition"
-                              title="Click to view live bus on map"
-                            >
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-black text-slate-900">
-                                    🚌 {bus.vehicle_number}
-                                  </span>
-                                  <span className={`rounded text-[9px] font-black px-1.5 py-0.5 ${getBusStatusClasses(busStatus)}`}>
-                                    ● {busStatus}
-                                  </span>
-                                </div>
-                                <div className="text-[10px] text-slate-500 font-medium mt-0.5 space-x-1.5">
-                                  <span>{speedLabel}</span>
-                                  <span>•</span>
-                                  <span className="font-mono text-slate-600">
-                                    GPS: {bus.latitude?.toFixed(4)}, {bus.longitude?.toFixed(4)}
-                                  </span>
-                                </div>
-                                {(bus.next_stop || bus.nextStop) && (
-                                  <p className="text-[10px] text-slate-600 font-bold mt-0.5">
-                                    Next: {bus.next_stop || bus.nextStop}
-                                  </p>
-                                )}
-                              </div>
-
-                              <div className="mt-1 sm:mt-0 flex items-center gap-1.5">
-                                {bus.eta && bus.eta !== bus.vehicle_number ? (
-                                  <span className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-black">
-                                    ETA: {bus.eta}
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] font-medium text-slate-400">
-                                    In Transit
-                                  </span>
-                                )}
-                                <span className="text-xs font-bold text-slate-400">›</span>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-          ) : universalRouteError ? (
-            <div className="py-16 px-4 text-center">
-              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 max-w-xs mx-auto space-y-2.5">
-                <span className="text-2xl block">⚠️</span>
-                <p className="text-xs font-bold text-red-700">
-                  {universalRouteError}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => loadUniversalRoute(selectedUniversalRoute, true)}
-                  className="rounded-xl bg-red-600 px-4 py-2 text-xs font-black text-white hover:bg-red-700 transition"
-                >
-                  Retry
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="py-20 text-center text-xs font-bold text-slate-500">
-              No stops available for this route.
-            </div>
-          )}
-        </div>
+          }
+        >
+          <RouteSearchView
+            backToHome={backToHome}
+            selectedUniversalRoute={selectedUniversalRoute}
+            setSelectedUniversalRoute={setSelectedUniversalRoute}
+            universalSearchQuery={universalSearchQuery}
+            setUniversalSearchQuery={setUniversalSearchQuery}
+            showUniversalDropdown={showUniversalDropdown}
+            setShowUniversalDropdown={setShowUniversalDropdown}
+            availableRoutes={availableRoutes}
+            universalRouteLoading={universalRouteLoading}
+            universalRouteError={universalRouteError}
+            universalRouteMap={universalRouteMap}
+            setUniversalRouteMap={setUniversalRouteMap}
+            universalLiveBuses={universalLiveBuses}
+            setUniversalLiveBuses={setUniversalLiveBuses}
+            universalRouteSource={universalRouteSource}
+            routeDirections={routeDirections}
+            getUniversalSearchResults={getUniversalSearchResults}
+            handleSelectRouteDirection={handleSelectRouteDirection}
+            mapInstance={mapInstance}
+            setCurrentView={setCurrentView}
+            setSelectedBusNumber={setSelectedBusNumber}
+            setFollowSelectedBus={setFollowSelectedBus}
+            lastTelemetryUpdate={lastTelemetryUpdate}
+            loadUniversalRoute={loadUniversalRoute}
+          />
+        </Suspense>
       )}
 
       {/* ========================================================= */}
-      {/* GLOBAL FOOTER / BRANDING                                  */}
-      {/* ========================================================= */}
-      <footer className="w-full mt-auto border-t border-slate-200/90 bg-white py-5 px-4 text-center select-none shadow-2xs">
-        <div className="max-w-md mx-auto flex flex-col items-center justify-center text-center space-y-1">
-          <p className="text-xs sm:text-sm font-bold text-slate-800 flex items-center justify-center gap-1.5 flex-wrap leading-tight">
-            <span>Made with</span>
-            <span className="text-red-500 inline-block animate-pulse text-sm" role="img" aria-label="love">❤️</span>
-            <span>in Jaipur by Gaurav</span>
-          </p>
-          <p className="text-[11px] sm:text-xs font-medium text-slate-500 tracking-tight leading-tight">
-            Real-time mobility, made simple.
-          </p>
-          <p className="text-[10px] sm:text-[11px] font-semibold text-slate-400 pt-0.5 leading-tight">
-            © 2026 Jaipur Bus Live (JBL) · All Rights Reserved
-          </p>
-        </div>
-      </footer>
 
-      {/* ========================================================= */}
+{/* JAIPUR BUS LIVE — FOOTER */}
+{/* ========================================================= */}
+<footer className="mt-auto border-t border-pink-200 bg-white text-slate-700">
+  <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 text-center">
+    <a
+      href="/"
+      className="inline-flex items-center justify-center gap-2 text-base font-black tracking-wide text-slate-900 min-h-[44px]"
+      aria-label="Jaipur Bus Live Home"
+    >
+      <span aria-hidden="true"></span>
+      <span>JAIPUR BUS LIVE (JBL)</span>
+    </a>
+
+    <p className="mt-1 text-sm text-slate-600">
+      Your City. Your Bus. Your Journey.
+    </p>
+
+    <nav
+      aria-label="Footer navigation"
+      className="mt-4 flex flex-wrap items-center justify-center gap-2 text-sm"
+    >
+      <a href="/" className="px-3.5 py-2.5 min-h-[44px] inline-flex items-center transition-colors hover:text-pink-600" aria-label="Jaipur Bus Live Home page">Home</a>
+
+      <a
+        href="/metro"
+        onMouseEnter={() => { import("./metro/MetroHome"); }}
+        onTouchStart={() => { import("./metro/MetroHome"); }}
+        onClick={(e) => {
+          e.preventDefault();
+          navigateToMode("metro");
+          window.scrollTo(0, 0);
+        }}
+        className="px-3.5 py-2.5 min-h-[44px] inline-flex items-center transition-colors hover:text-pink-600 font-semibold"
+        aria-label="Jaipur Metro Pink Line Guide"
+      >
+        <span>🚇</span>
+        <span className="ml-1">Jaipur Metro Guide</span>
+      </a>
+
+      <button
+        type="button"
+        onClick={() => setShowInfoDrawer(true)}
+        className="px-3.5 py-2.5 min-h-[44px] inline-flex items-center transition-colors hover:text-pink-600"
+        aria-label="About Jaipur Bus Live details"
+      >
+        About JBL
+      </button>
+    </nav>
+
+    <p className="mt-3 text-sm font-medium text-emerald-700">
+      Jaipur Public Transport Information
+    </p>
+
+    <p className="mt-2 text-xs text-slate-600">
+      Built with <span className="text-pink-600">♥</span> by <span className="font-black text-slate-900">Gumshuda</span>
+      <span aria-hidden="true"> | </span>
+      Jaipur, Rajasthan
+    </p>
+
+    <p className="mt-2 border-t border-slate-100 pt-3 text-xs text-slate-600">
+      © {new Date().getFullYear()} Jaipur Bus Live. All rights reserved.
+    </p>
+  </div>
+</footer>
       {/* 7. STOP DETAILS MODAL                                     */}
       {/* ========================================================= */}
       {stopDetailsOpen && selectedStop && (
@@ -2898,9 +2226,10 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setStopDetailsOpen(false)}
-                className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-600 hover:bg-slate-200"
+                aria-label="Close stop details modal"
+                className="h-10 w-10 min-h-[40px] min-w-[40px] rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-600 hover:bg-slate-200"
               >
-                ✕
+                ✖
               </button>
             </div>
 
@@ -2947,6 +2276,10 @@ export default function App() {
               {stopBusesLoading ? (
                 <div className="py-6 text-center text-xs font-bold text-slate-400">
                   Checking approaching live buses...
+                </div>
+              ) : stopBusesError ? (
+                <div className="py-6 text-center text-xs font-bold text-amber-700 bg-amber-50 rounded-2xl">
+                  Live arrivals are temporarily unavailable. Please try again.
                 </div>
               ) : stopBuses.length > 0 ? (
                 <div className="space-y-2">
@@ -3036,9 +2369,10 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setShowInfoDrawer(false)}
-                  className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-600 hover:bg-slate-200"
+                  aria-label="Close navigation menu"
+                  className="h-10 w-10 min-h-[40px] min-w-[40px] rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-600 hover:bg-slate-200"
                 >
-                  ✕
+                  ✖
                 </button>
               </div>
 
@@ -3047,10 +2381,11 @@ export default function App() {
                 <p className="text-[10px] font-black uppercase text-slate-400 px-2 py-0.5">
                   Select Application Mode:
                 </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAppMode("bus");
+                <a
+                  href="/"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigateToMode("bus");
                     setShowInfoDrawer(false);
                   }}
                   className={`w-full btn-3d p-2.5 rounded-xl text-xs font-black transition flex items-center justify-between ${
@@ -3063,14 +2398,15 @@ export default function App() {
                     <span>🚌</span> Jaipur Bus (JCTSL)
                   </span>
                   {appMode === "bus" && (
-                    <span className="text-[10px] text-emerald-400 font-bold">● Active</span>
+                    <span className="text-[10px] text-emerald-400 font-bold">🟢 Active</span>
                   )}
-                </button>
+                </a>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAppMode("metro");
+                <a
+                  href="/metro"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigateToMode("metro");
                     setShowInfoDrawer(false);
                   }}
                   className={`w-full btn-3d p-2.5 rounded-xl text-xs font-black transition flex items-center justify-between ${
@@ -3083,16 +2419,17 @@ export default function App() {
                     <span>🚇</span> Jaipur Metro (Pink Line)
                   </span>
                   {appMode === "metro" && (
-                    <span className="text-[10px] text-rose-200 font-bold">● Active</span>
+                    <span className="text-[10px] text-rose-200 font-bold">🟢 Active</span>
                   )}
-                </button>
+                </a>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAppMode("emergency");
-                    setShowInfoDrawer(false);
-                  }}
+                {appMode !== "metro" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAppMode("emergency");
+                      setShowInfoDrawer(false);
+                    }}
                   className={`w-full btn-3d p-2.5 rounded-xl text-xs font-black transition flex items-center justify-between ${
                     appMode === "emergency"
                       ? "btn-3d-red"
@@ -3103,29 +2440,12 @@ export default function App() {
                     <span>🚨</span> Emergency & SOS (112)
                   </span>
                   {appMode === "emergency" && (
-                    <span className="text-[10px] text-white font-bold">● Active</span>
+                    <span className="text-[10px] text-white font-bold">🟢 Active</span>
                   )}
                 </button>
+                )}
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAppMode("support");
-                    setShowInfoDrawer(false);
-                  }}
-                  className={`w-full btn-3d p-2.5 rounded-xl text-xs font-black transition flex items-center justify-between ${
-                    appMode === "support"
-                      ? "btn-3d-dark"
-                      : "btn-3d-light"
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <span>❤️</span> Support JBL
-                  </span>
-                  {appMode === "support" && (
-                    <span className="text-[10px] text-rose-400 font-bold">● Active</span>
-                  )}
-                </button>
+
               </div>
 
               <div className="space-y-3 text-xs text-slate-600 leading-relaxed">
@@ -3161,34 +2481,6 @@ export default function App() {
                 <p>
                   Telemetry automatically updates every 25 seconds directly from live GPS sensors.
                 </p>
-
-                {/* JBL SUPPORT SECTION IN DRAWER */}
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-center mt-3 space-y-1.5">
-                  <div className="flex items-center justify-center gap-1.5">
-                    <span className="text-sm select-none">❤️</span>
-                    <p className="text-xs font-black text-slate-900">
-                      Help Us Make JBL Better
-                    </p>
-                  </div>
-                  <p className="text-[11px] font-semibold text-slate-600">
-                    Scan the QR code to support JBL.
-                  </p>
-                  <div className="flex justify-center py-1">
-                    <div className="p-2 bg-slate-900 rounded-xl border border-slate-800 shadow-sm inline-block">
-                      <img
-                        src="/assets/jbl-support-qr.png"
-                        alt="Support JBL QR Code"
-                        width="160"
-                        height="160"
-                        className="w-36 h-36 object-contain rounded-lg block select-none"
-                        loading="lazy"
-                      />
-                    </div>
-                  </div>
-                  <p className="text-[11px] font-bold text-slate-700">
-                    Even ₹1 helps.
-                  </p>
-                </div>
               </div>
             </div>
 
@@ -3213,9 +2505,10 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setShowFavoritesModal(false)}
-                className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-600 hover:bg-slate-200"
+                aria-label="Close favorites modal"
+                className="h-10 w-10 min-h-[40px] min-w-[40px] rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-600 hover:bg-slate-200"
               >
-                ✕
+                ✖
               </button>
             </div>
 
@@ -3256,7 +2549,7 @@ export default function App() {
                           onClick={() => toggleFavorite(fav)}
                           className="text-xs text-slate-400 hover:text-red-600 font-bold px-1"
                         >
-                          ✕
+                          ✖
                         </button>
                       </div>
                     </div>
