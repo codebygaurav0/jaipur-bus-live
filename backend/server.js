@@ -7,7 +7,10 @@ const { createHash } = require("crypto");
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 const { telemetryEngine } = require("./telemetryEngine");
 const { runJctslNetworkDiagnostic } = require("./jctslNetworkDiagnostic");
-const { createSessionManager, createSessionStore } = require("./sessionStore");
+const {
+  createSessionManager,
+  createSessionStoreForRuntime,
+} = require("./sessionStore");
 
 // Force IPv4 DNS resolution first to avoid IPv6 NAT64 prefix (64:ff9b::) timeouts on cloud hosts (Render/Docker/Linux)
 if (typeof dns.setDefaultResultOrder === "function") {
@@ -43,19 +46,23 @@ if (parsedBaseUrl.protocol !== "https:") {
   throw new Error("JCTSL_BASE_URL must use HTTPS");
 }
 const JCTSL_HOST = parsedBaseUrl.hostname;
+const IS_VERCEL_RUNTIME = process.env.VERCEL === "1";
 
 /*
 |--------------------------------------------------------------------------
-| LOCAL JCTSL SESSION MANAGEMENT
-| Local backends persist verified credentials; serverless replicas remain isolated.
+| JCTSL SESSION MANAGEMENT
+| Local backends use an atomic file store; Vercel instances share Upstash Redis.
 |--------------------------------------------------------------------------
 */
-const sessionStore = createSessionStore(
-  process.env.JCTSL_SESSION_FILE || path.join(__dirname, ".session.json")
-);
+const sessionStore = createSessionStoreForRuntime({
+  env: process.env,
+  localFilePath:
+    process.env.JCTSL_SESSION_FILE || path.join(__dirname, ".session.json"),
+});
 const sessionManager = createSessionManager({
   store: sessionStore,
   verifySession: verifyRestoredJctslSession,
+  requireStoredSession: IS_VERCEL_RUNTIME,
 });
 const pendingAuthMap = new Map(); // mobile -> { authToken, userId, expectedOtp, respData, timestamp }
 const otpRequestLimits = new Map();
@@ -63,12 +70,17 @@ const OTP_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const OTP_RATE_LIMIT_MAX = 3;
 
 if (sessionManager.hasRestoredSession()) {
-  console.log("Loaded a local JCTSL session candidate; provider verification is required before use.");
+  console.log("Loaded a JCTSL session candidate; provider verification is required before use.");
 } else if (sessionManager.getLastValidationErrorCode() === "INVALID_STORED_SESSION") {
-  console.warn("[JCTSL Auth] Invalid local session file was cleared.");
+  console.warn("[JCTSL Auth] Invalid stored session was cleared.");
 }
 
-if (!sessionManager.hasRestoredSession() && process.env.JCTSL_AUTH_TOKEN && process.env.JCTSL_USER_ID) {
+if (
+  !IS_VERCEL_RUNTIME &&
+  !sessionManager.hasRestoredSession() &&
+  process.env.JCTSL_AUTH_TOKEN &&
+  process.env.JCTSL_USER_ID
+) {
   sessionManager.setConfiguredSession({
     authToken: process.env.JCTSL_AUTH_TOKEN,
     userId: process.env.JCTSL_USER_ID,
@@ -83,11 +95,11 @@ if (!sessionManager.hasRestoredSession() && process.env.JCTSL_AUTH_TOKEN && proc
   console.log("Loaded configured JCTSL credentials from environment.");
 }
 
-function saveSession(session) {
+async function saveSession(session) {
   if (session) {
-    sessionManager.saveVerifiedSession(session);
+    await sessionManager.saveVerifiedSession(session);
   } else {
-    sessionManager.logout();
+    await sessionManager.logout();
   }
 }
 
@@ -256,13 +268,14 @@ app.get("/api/jctsl-network-diagnostic", async (req, res) => {
 |--------------------------------------------------------------------------
 */
 function getAuthHeaders(req) {
-  const headerToken = req?.headers ? req.headers["auth-token"] : null;
-  const headerUserId = req?.headers ? req.headers["user-id"] : null;
-
   const activeSession = sessionManager.getActiveSession();
   const sessionToken = activeSession?.authToken;
   const sessionUserId = activeSession?.userId;
   const hasActiveSession = Boolean(sessionToken && sessionUserId);
+  const headerToken =
+    !IS_VERCEL_RUNTIME && req?.headers ? req.headers["auth-token"] : null;
+  const headerUserId =
+    !IS_VERCEL_RUNTIME && req?.headers ? req.headers["user-id"] : null;
   const authToken = hasActiveSession ? sessionToken : headerToken;
   const userId = hasActiveSession ? sessionUserId : headerUserId;
 
@@ -280,11 +293,55 @@ function getAuthHeaders(req) {
 }
 
 async function ensureAuthHeaders(req) {
-  if (sessionManager.hasRestoredSession()) {
-    const result = await sessionManager.ensureRestoredSession();
-    if (!result.success) return null;
+  const result = await sessionManager.ensureRestoredSession();
+  if (!result.success) {
+    if (IS_VERCEL_RUNTIME) return null;
+    if (
+      result.errorCode !== "AUTH_REQUIRED" &&
+      result.errorCode !== "INVALID_STORED_SESSION"
+    ) return null;
   }
   return getAuthHeaders(req);
+}
+
+function getSessionFailure(errorCode = sessionManager.getLastValidationErrorCode()) {
+  if (
+    errorCode === "AUTH_REQUIRED" ||
+    errorCode === "INVALID_STORED_SESSION" ||
+    !errorCode
+  ) {
+    return {
+      status: 401,
+      code: "AUTH_REQUIRED",
+      message: "No valid server-side JCTSL session is available.",
+    };
+  }
+  if (String(errorCode).startsWith("SESSION_STORE_")) {
+    return {
+      status: 503,
+      code: "SESSION_STORE_UNAVAILABLE",
+      message: "The server-side JCTSL session store is temporarily unavailable.",
+    };
+  }
+  return {
+    status: 503,
+    code: errorCode,
+    message: "The saved JCTSL session could not be verified with the provider.",
+  };
+}
+
+function respondWithSessionFailure(res, errorCode) {
+  const failure = getSessionFailure(errorCode);
+  return res.status(failure.status).json({
+    success: false,
+    authenticated: false,
+    user: null,
+    requiresAuth: failure.status === 401,
+    error: {
+      code: failure.code,
+      message: failure.message,
+    },
+  });
 }
 
 function requestJctslOverIpv4({ url, method, headers, body, timeoutMs }) {
@@ -795,7 +852,7 @@ app.post("/api/auth/verify-otp", async (req, res) => {
       },
     };
 
-    saveSession(newSession);
+    await saveSession(newSession);
     pendingAuthMap.delete(cleanMobile);
 
     return res.json({
@@ -804,11 +861,19 @@ app.post("/api/auth/verify-otp", async (req, res) => {
       user: sessionManager.getActiveSession().user,
     });
   } catch (error) {
-    console.error(`[JCTSL OTP] Verification failed (code: ${error.code || "OTP_ERROR"})`);
+    const errorCode = getSafeErrorCode(error, "OTP_ERROR");
+    console.error(`[JCTSL OTP] Verification failed (code: ${errorCode})`);
+    if (IS_VERCEL_RUNTIME && errorCode.startsWith("SESSION_STORE_")) {
+      return res.status(503).json({
+        success: false,
+        message: "The server-side JCTSL session store is temporarily unavailable.",
+        error: { code: "SESSION_STORE_UNAVAILABLE" },
+      });
+    }
     return res.status(500).json({
       success: false,
       message: "Error verifying OTP",
-      error: { code: error.code || "OTP_ERROR" },
+      error: { code: errorCode },
     });
   }
 });
@@ -826,16 +891,22 @@ app.get("/api/auth/session", async (req, res) => {
         `[JCTSL Auth] Rejected session could not be removed (code: ${validation.persistenceErrorCode})`
       );
     }
+    if (IS_VERCEL_RUNTIME) {
+      return respondWithSessionFailure(res, validation.errorCode);
+    }
     const needsAuth = validation.errorCode === "AUTH_REQUIRED" ||
       validation.errorCode === "INVALID_STORED_SESSION";
+    const storageUnavailable = validation.errorCode.startsWith("SESSION_STORE_");
     return res.json({
       authenticated: false,
       user: null,
       error: {
         code: needsAuth ? "AUTH_REQUIRED" : validation.errorCode,
-        message: needsAuth
-          ? "No valid server-side JCTSL session is available."
-          : "The saved JCTSL session could not be verified with the provider.",
+        message: storageUnavailable
+          ? "The server-side JCTSL session store is temporarily unavailable."
+          : needsAuth
+            ? "No valid server-side JCTSL session is available."
+            : "The saved JCTSL session could not be verified with the provider.",
       },
     });
   }
@@ -846,18 +917,21 @@ app.get("/api/auth/session", async (req, res) => {
   });
 });
 
-app.post("/api/auth/logout", (req, res) => {
+app.post("/api/auth/logout", async (req, res) => {
   try {
-    saveSession(null);
+    await saveSession(null);
     return res.json({
       success: true,
       message: "Logged out successfully",
     });
   } catch (error) {
     const errorCode = getSafeErrorCode(error, "SESSION_STORE_CLEAR_FAILED");
-    return res.status(500).json({
+    const storeFailure = IS_VERCEL_RUNTIME && errorCode.startsWith("SESSION_STORE_");
+    return res.status(storeFailure ? 503 : 500).json({
       success: false,
-      error: { code: errorCode },
+      error: {
+        code: storeFailure ? "SESSION_STORE_UNAVAILABLE" : errorCode,
+      },
     });
   }
 });
@@ -871,6 +945,9 @@ app.post("/api/cities", async (req, res) => {
   try {
     const headers = await ensureAuthHeaders(req);
     if (!headers) {
+      if (IS_VERCEL_RUNTIME) {
+        return respondWithSessionFailure(res);
+      }
       return res.status(401).json({
         success: false,
         message: "Login required for live JCTSL data",
@@ -1038,6 +1115,9 @@ const handleBusStops = async (req, res) => {
     }
 
     const headers = await ensureAuthHeaders(req);
+    if (!headers && IS_VERCEL_RUNTIME) {
+      return respondWithSessionFailure(res);
+    }
     if (headers) {
       const city_id = req.query?.city_id || req.body?.city_id || "1";
       const targetUrl = new URL("usr/citibuslist", targetBase).toString();
@@ -1122,6 +1202,9 @@ const handleBusesNearStop = async (req, res) => {
     }
 
     const headers = await ensureAuthHeaders(req);
+    if (!headers && IS_VERCEL_RUNTIME) {
+      return respondWithSessionFailure(res);
+    }
     if (headers) {
       const upstream = await jctslFetch("log/vehnearstop", {
         method: "POST",
@@ -1270,9 +1353,17 @@ async function verifyRestoredJctslSession(candidate) {
   return { success: true };
 }
 
-function invalidateSessionAfterAuthRejection(errorCode) {
-  if (errorCode === "AUTH_SESSION_EXPIRED" && sessionManager.hasActiveSession()) {
-    sessionManager.invalidate();
+async function invalidateSessionAfterAuthRejection(errorCode, headers) {
+  if (errorCode === "AUTH_SESSION_EXPIRED" && headers) {
+    try {
+      await sessionManager.invalidateIfCurrent({
+        authToken: headers["Auth-token"],
+        userId: headers["User-ID"],
+      });
+    } catch (error) {
+      const code = getSafeErrorCode(error, "SESSION_STORE_CLEAR_FAILED");
+      console.error(`[JCTSL Auth] Rejected session invalidation failed (code: ${code})`);
+    }
   }
 }
 
@@ -1354,6 +1445,13 @@ function respondWithLiveBusFailure(res, {
 const handleLiveBuses = async (req, res) => {
   try {
     const org_id = req.query?.org_id || req.body?.org_id || "1";
+    let headers = null;
+    if (IS_VERCEL_RUNTIME) {
+      headers = await ensureAuthHeaders(req);
+      if (!headers) {
+        return respondWithSessionFailure(res);
+      }
+    }
     const now = Date.now();
     const cacheAge = now - lastLiveBusFetchTimestamp;
 
@@ -1376,15 +1474,13 @@ const handleLiveBuses = async (req, res) => {
       });
     }
 
-    let headers = await ensureAuthHeaders(req);
+    if (!headers) headers = await ensureAuthHeaders(req);
     if (!headers) {
-      const validationError = sessionManager.getLastValidationErrorCode();
       const errorCode =
-        validationError &&
-        validationError !== "AUTH_REQUIRED" &&
-        validationError !== "INVALID_STORED_SESSION"
-          ? validationError
-          : "AUTH_REQUIRED";
+        sessionManager.getLastValidationErrorCode() || "AUTH_REQUIRED";
+      if (IS_VERCEL_RUNTIME) {
+        return respondWithSessionFailure(res, errorCode);
+      }
       return respondWithLiveBusFailure(res, { errorCode });
     }
 
@@ -1393,7 +1489,7 @@ const handleLiveBuses = async (req, res) => {
     const parsedResponse = parseLiveBusResponse(upstream);
     if (!parsedResponse.success) {
       const { errorCode } = parsedResponse;
-      invalidateSessionAfterAuthRejection(errorCode);
+      await invalidateSessionAfterAuthRejection(errorCode, headers);
       updateUpstreamFailure(errorCode);
       return respondWithLiveBusFailure(res, {
         errorCode: errorCode === "AUTH_SESSION_EXPIRED" ? "AUTH_REQUIRED" : errorCode,
@@ -1465,7 +1561,7 @@ async function pollJctslTelemetry() {
 
     const parsedResponse = parseLiveBusResponse(upstream);
     if (!parsedResponse.success) {
-      invalidateSessionAfterAuthRejection(parsedResponse.errorCode);
+      await invalidateSessionAfterAuthRejection(parsedResponse.errorCode, headers);
       updateUpstreamFailure(parsedResponse.errorCode);
       return;
     }
@@ -1569,6 +1665,9 @@ const handleAvailableRoutes = async (req, res) => {
     }
 
     const headers = await ensureAuthHeaders(req);
+    if (!headers && IS_VERCEL_RUNTIME) {
+      return respondWithSessionFailure(res);
+    }
     if (headers) {
       const city_id = req.query?.city_id || req.body?.city_id || "1";
       const upstream = await jctslFetch("Log/getAvailableroutes", {
@@ -1656,6 +1755,9 @@ app.get("/api/routes/search", async (req, res) => {
   try {
     const headers = await ensureAuthHeaders(req);
     if (!headers) {
+      if (IS_VERCEL_RUNTIME) {
+        return respondWithSessionFailure(res);
+      }
       return res.status(401).json({
         success: false,
         message: "Login required for live JCTSL data",
@@ -1756,6 +1858,9 @@ const handleLiveRoute = async (req, res) => {
     }
 
     const headers = await ensureAuthHeaders(req);
+    if (!headers && IS_VERCEL_RUNTIME) {
+      return respondWithSessionFailure(res);
+    }
     if (headers) {
       const upstream = await jctslFetch("rt/rvsearching", {
         method: "POST",
@@ -1861,6 +1966,9 @@ const handleRouteMap = async (req, res) => {
     }
 
     const headers = await ensureAuthHeaders(req);
+    if (!headers && IS_VERCEL_RUNTIME) {
+      return respondWithSessionFailure(res);
+    }
     if (headers) {
       const upstream = await jctslFetch("rt/bspdtl", {
         method: "POST",
@@ -1957,6 +2065,9 @@ const handleBusTrack = async (req, res) => {
   try {
     const headers = await ensureAuthHeaders(req);
     if (!headers) {
+      if (IS_VERCEL_RUNTIME) {
+        return respondWithSessionFailure(res);
+      }
       return res.status(401).json({
         success: false,
         message: "Login required for live JCTSL data",
@@ -2033,6 +2144,9 @@ const handleFare = async (req, res) => {
   try {
     const headers = await ensureAuthHeaders(req);
     if (!headers) {
+      if (IS_VERCEL_RUNTIME) {
+        return respondWithSessionFailure(res);
+      }
       return res.status(401).json({
         success: false,
         message: "Login required for live JCTSL data",
@@ -2102,6 +2216,9 @@ const handleBusTimings = async (req, res) => {
   try {
     const headers = await ensureAuthHeaders(req);
     if (!headers) {
+      if (IS_VERCEL_RUNTIME) {
+        return respondWithSessionFailure(res);
+      }
       return res.status(401).json({
         success: false,
         message: "Login required for live JCTSL data",
