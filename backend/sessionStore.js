@@ -40,6 +40,21 @@ function createSessionStore(filePath) {
     }
   }
 
+  function clearIfMatch(value) {
+    const expected = normalizeSession(value);
+    if (!expected) return false;
+    const loaded = load();
+    if (
+      !loaded.session ||
+      loaded.session.authToken !== expected.authToken ||
+      loaded.session.userId !== expected.userId
+    ) {
+      return false;
+    }
+    clear();
+    return true;
+  }
+
   function load() {
     let contents;
     try {
@@ -103,22 +118,240 @@ function createSessionStore(filePath) {
     }
   }
 
-  return { clear, load, save, filePath: sessionFile };
+  return { clear, clearIfMatch, load, save, filePath: sessionFile };
 }
 
-function createSessionManager({ store, verifySession }) {
+function createRedisSessionStore({
+  url,
+  token,
+  fetchImpl = globalThis.fetch,
+  key = "jbl:jctsl:session",
+}) {
+  let endpoint;
+  try {
+    endpoint = new URL(url);
+  } catch {
+    throw new TypeError("A valid Upstash Redis REST URL is required");
+  }
+  if (
+    endpoint.protocol !== "https:" ||
+    typeof token !== "string" ||
+    !token.trim() ||
+    typeof fetchImpl !== "function" ||
+    typeof key !== "string" ||
+    !key.trim()
+  ) {
+    throw new TypeError("Valid Upstash Redis session store configuration is required");
+  }
+
+  const redisUrl = endpoint.toString().replace(/\/$/, "");
+  const deleteIfMatchScript =
+    "local current = redis.call('GET', KEYS[1]); if not current then return 0 end; local ok, stored = pcall(cjson.decode, current); local expected = cjson.decode(ARGV[1]); if ok and type(stored) == 'table' and stored.authToken == expected.authToken and stored.userId == expected.userId then return redis.call('DEL', KEYS[1]) else return 0 end";
+  const deleteRawIfMatchScript =
+    "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end";
+
+  async function command(parts, failureCode) {
+    let response;
+    try {
+      response = await fetchImpl(redisUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(parts),
+      });
+    } catch {
+      const error = new Error("Upstash session storage is unavailable");
+      error.code = failureCode;
+      throw error;
+    }
+
+    if (!response?.ok) {
+      const error = new Error("Upstash session storage request failed");
+      error.code = failureCode;
+      throw error;
+    }
+
+    let payload;
+    try {
+      payload = await response.json();
+    } catch {
+      const error = new Error("Upstash returned an invalid session storage response");
+      error.code = failureCode;
+      throw error;
+    }
+    if (!payload || payload.error || !Object.hasOwn(payload, "result")) {
+      const error = new Error("Upstash session storage request failed");
+      error.code = failureCode;
+      throw error;
+    }
+    return payload.result;
+  }
+
+  async function load() {
+    const value = await command(["GET", key], "SESSION_STORE_READ_FAILED");
+    if (value === null) return { session: null, invalid: false };
+    if (typeof value !== "string") {
+      const error = new Error("Upstash returned an invalid stored session");
+      error.code = "SESSION_STORE_READ_FAILED";
+      throw error;
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      await deleteRawIfMatch(value);
+      return { session: null, invalid: true };
+    }
+    const session =
+      parsed &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed) &&
+      typeof parsed.authToken === "string" &&
+      typeof parsed.userId === "string"
+        ? normalizeSession(parsed)
+        : null;
+    if (!session) {
+      await deleteRawIfMatch(value);
+      return { session: null, invalid: true };
+    }
+    return { session, invalid: false };
+  }
+
+  async function deleteRawIfMatch(value) {
+    await command(
+      ["EVAL", deleteRawIfMatchScript, "1", key, value],
+      "SESSION_STORE_CLEAR_FAILED"
+    );
+  }
+
+  async function save(value) {
+    const session = normalizeSession(value);
+    if (!session) {
+      const error = new Error("Refusing to persist an invalid JCTSL session");
+      error.code = "INVALID_SESSION";
+      throw error;
+    }
+    await command(
+      ["SET", key, JSON.stringify(session)],
+      "SESSION_STORE_WRITE_FAILED"
+    );
+  }
+
+  async function clear() {
+    await command(["DEL", key], "SESSION_STORE_CLEAR_FAILED");
+  }
+
+  async function clearIfMatch(value) {
+    const session = normalizeSession(value);
+    if (!session) return false;
+    const result = await command(
+      [
+        "EVAL",
+        deleteIfMatchScript,
+        "1",
+        key,
+        JSON.stringify(session),
+      ],
+      "SESSION_STORE_CLEAR_FAILED"
+    );
+    return Number(result) === 1;
+  }
+
+  return { clear, clearIfMatch, load, save, refreshOnRead: true };
+}
+
+function createSessionStoreForRuntime({
+  env = process.env,
+  localFilePath,
+  fetchImpl = globalThis.fetch,
+} = {}) {
+  if (env.VERCEL === "1") {
+    if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
+      const error = new Error("Upstash Redis session storage is not configured");
+      error.code = "SESSION_STORE_CONFIGURATION_ERROR";
+      throw error;
+    }
+    return createRedisSessionStore({
+      url: env.UPSTASH_REDIS_REST_URL,
+      token: env.UPSTASH_REDIS_REST_TOKEN,
+      fetchImpl,
+    });
+  }
+  if (!localFilePath) {
+    throw new TypeError("A local session file path is required outside Vercel");
+  }
+  return createSessionStore(localFilePath);
+}
+
+function createSessionManager({
+  store,
+  verifySession,
+  requireStoredSession = false,
+}) {
   if (!store || typeof verifySession !== "function") {
     throw new TypeError("A session store and session verifier are required");
   }
 
-  const loaded = store.load();
   let activeSession = null;
-  let restoredSession = loaded.session;
+  let activeSource = null;
+  let restoredSession = null;
   let validationPromise = null;
-  let lastValidationErrorCode = loaded.invalid ? "INVALID_STORED_SESSION" : null;
+  let lastValidationErrorCode = null;
 
   function getActiveSession() {
     return activeSession;
+  }
+
+  function sameSession(left, right) {
+    const normalizedLeft = normalizeSession(left);
+    const normalizedRight = normalizeSession(right);
+    return Boolean(
+      normalizedLeft &&
+        normalizedRight &&
+        normalizedLeft.authToken === normalizedRight.authToken &&
+        normalizedLeft.userId === normalizedRight.userId
+    );
+  }
+
+  function applyLoadedSession(loaded) {
+    if (loaded.session) {
+      if (!sameSession(activeSession, loaded.session) || activeSource !== "stored") {
+        activeSession = null;
+        activeSource = null;
+        restoredSession = loaded.session;
+      }
+      lastValidationErrorCode = null;
+      return;
+    }
+    if (activeSource === "stored") {
+      activeSession = null;
+      activeSource = null;
+    }
+    restoredSession = null;
+    if (loaded.invalid) {
+      lastValidationErrorCode = "INVALID_STORED_SESSION";
+    } else if (lastValidationErrorCode !== "AUTH_REQUIRED") {
+      lastValidationErrorCode = null;
+    }
+  }
+
+  let initialLoadPromise;
+  try {
+    const loaded = store.load();
+    if (loaded && typeof loaded.then === "function") {
+      initialLoadPromise = loaded.then(applyLoadedSession).catch((error) => {
+        lastValidationErrorCode = error.code || "SESSION_STORE_READ_FAILED";
+      });
+    } else {
+      applyLoadedSession(loaded);
+      initialLoadPromise = Promise.resolve();
+    }
+  } catch (error) {
+    lastValidationErrorCode = error.code || "SESSION_STORE_READ_FAILED";
+    initialLoadPromise = Promise.resolve();
   }
 
   function hasActiveSession() {
@@ -134,9 +367,15 @@ function createSessionManager({ store, verifySession }) {
   }
 
   function setConfiguredSession(session) {
+    if (requireStoredSession) {
+      const error = new Error("Configured sessions are disabled for this runtime");
+      error.code = "CONFIGURED_SESSION_DISABLED";
+      throw error;
+    }
     const normalized = normalizeSession(session);
     if (!normalized) throw new TypeError("Configured JCTSL session is invalid");
     activeSession = { ...session, ...normalized };
+    activeSource = "configured";
     restoredSession = null;
     lastValidationErrorCode = null;
   }
@@ -144,27 +383,68 @@ function createSessionManager({ store, verifySession }) {
   function saveVerifiedSession(session) {
     const normalized = normalizeSession(session);
     if (!normalized) throw new TypeError("Verified JCTSL session is invalid");
-    store.save(normalized);
-    activeSession = { ...session, ...normalized };
-    restoredSession = null;
-    lastValidationErrorCode = null;
+    const saved = store.save(normalized);
+    const activate = () => {
+      activeSession = { ...session, ...normalized };
+      activeSource = "stored";
+      restoredSession = null;
+      lastValidationErrorCode = null;
+    };
+    if (saved && typeof saved.then === "function") return saved.then(activate);
+    activate();
   }
 
   function logout() {
-    activeSession = null;
-    restoredSession = null;
-    lastValidationErrorCode = null;
-    store.clear();
+    const cleared = store.clear();
+    const finish = () => {
+      activeSession = null;
+      activeSource = null;
+      restoredSession = null;
+      lastValidationErrorCode = null;
+    };
+    if (cleared && typeof cleared.then === "function") return cleared.then(finish);
+    finish();
   }
 
   function invalidate() {
-    activeSession = null;
-    restoredSession = null;
+    return invalidateIfCurrent(activeSession);
+  }
+
+  async function invalidateIfCurrent(value) {
+    const expected = normalizeSession(value);
+    if (!expected) return false;
+    const activeMatches = sameSession(activeSession, expected);
+    if (activeMatches) {
+      activeSession = null;
+      activeSource = null;
+    }
+    if (sameSession(restoredSession, expected)) restoredSession = null;
     lastValidationErrorCode = "AUTH_REQUIRED";
-    store.clear();
+
+    let cleared = false;
+    if (typeof store.clearIfMatch === "function") {
+      cleared = await store.clearIfMatch(expected);
+    } else if (activeMatches) {
+      await store.clear();
+      cleared = true;
+    }
+    return cleared;
+  }
+
+  async function refreshFromStore() {
+    await initialLoadPromise;
+    if (!store.refreshOnRead) return;
+    const loaded = await store.load();
+    applyLoadedSession(loaded);
   }
 
   async function ensureRestoredSession() {
+    try {
+      await refreshFromStore();
+    } catch (error) {
+      lastValidationErrorCode = error.code || "SESSION_STORE_READ_FAILED";
+      return { success: false, errorCode: lastValidationErrorCode };
+    }
     if (activeSession) return { success: true };
     if (!restoredSession) {
       return {
@@ -190,12 +470,13 @@ function createSessionManager({ store, verifySession }) {
 
       if (result?.success) {
         try {
-          store.save(candidate);
+          await store.save(candidate);
         } catch (error) {
           lastValidationErrorCode = error.code || "SESSION_STORE_WRITE_FAILED";
           return { success: false, errorCode: lastValidationErrorCode };
         }
         activeSession = candidate;
+        activeSource = "stored";
         restoredSession = null;
         lastValidationErrorCode = null;
         return { success: true };
@@ -205,7 +486,11 @@ function createSessionManager({ store, verifySession }) {
         restoredSession = null;
         lastValidationErrorCode = "AUTH_REQUIRED";
         try {
-          store.clear();
+          if (typeof store.clearIfMatch === "function") {
+            await store.clearIfMatch(candidate);
+          } else {
+            await store.clear();
+          }
         } catch (error) {
           return {
             success: false,
@@ -232,6 +517,7 @@ function createSessionManager({ store, verifySession }) {
     hasActiveSession,
     hasRestoredSession,
     invalidate,
+    invalidateIfCurrent,
     logout,
     saveVerifiedSession,
     setConfiguredSession,
@@ -239,7 +525,9 @@ function createSessionManager({ store, verifySession }) {
 }
 
 module.exports = {
+  createRedisSessionStore,
   createSessionManager,
   createSessionStore,
+  createSessionStoreForRuntime,
   normalizeSession,
 };
