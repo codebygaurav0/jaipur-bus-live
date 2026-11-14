@@ -1,4 +1,4 @@
-﻿const express = require("express");
+const express = require("express");
 const cors = require("cors");
 const dns = require("dns");
 const https = require("https");
@@ -6,6 +6,7 @@ const path = require("path");
 const { createHash } = require("crypto");
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 const { telemetryEngine } = require("./telemetryEngine");
+const { createTelemetryStoreForRuntime } = require("./telemetryStore");
 const { runJctslNetworkDiagnostic } = require("./jctslNetworkDiagnostic");
 const {
   createSessionManager,
@@ -47,6 +48,7 @@ if (parsedBaseUrl.protocol !== "https:") {
 }
 const JCTSL_HOST = parsedBaseUrl.hostname;
 const IS_VERCEL_RUNTIME = process.env.VERCEL === "1";
+const telemetryStore = createTelemetryStoreForRuntime({ env: process.env });
 
 /*
 |--------------------------------------------------------------------------
@@ -63,11 +65,23 @@ const sessionManager = createSessionManager({
   store: sessionStore,
   verifySession: verifyRestoredJctslSession,
   requireStoredSession: IS_VERCEL_RUNTIME,
+  getConfiguredSession: () => {
+    if (process.env.JCTSL_AUTH_TOKEN && process.env.JCTSL_USER_ID) {
+      return {
+        authToken: process.env.JCTSL_AUTH_TOKEN,
+        userId: process.env.JCTSL_USER_ID,
+        mobile: process.env.JCTSL_MOBILE || "",
+        user: {
+          mobile: process.env.JCTSL_MOBILE || "",
+          firstName: process.env.JCTSL_FIRST_NAME || "",
+          lastName: process.env.JCTSL_LAST_NAME || "",
+          email: process.env.JCTSL_EMAIL || "",
+        },
+      };
+    }
+    return null;
+  },
 });
-const pendingAuthMap = new Map(); // mobile -> { authToken, userId, expectedOtp, respData, timestamp }
-const otpRequestLimits = new Map();
-const OTP_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
-const OTP_RATE_LIMIT_MAX = 3;
 
 if (sessionManager.hasRestoredSession()) {
   console.log("Loaded a JCTSL session candidate; provider verification is required before use.");
@@ -95,6 +109,7 @@ if (
   console.log("Loaded configured JCTSL credentials from environment.");
 }
 
+
 async function saveSession(session) {
   if (session) {
     await sessionManager.saveVerifiedSession(session);
@@ -103,32 +118,6 @@ async function saveSession(session) {
   }
 }
 
-function prunePendingAuth(now = Date.now()) {
-  for (const [mobile, data] of pendingAuthMap.entries()) {
-    if (now - data.timestamp > 10 * 60 * 1000) pendingAuthMap.delete(mobile);
-  }
-}
-
-function allowOtpRequest(ip, mobile, now = Date.now()) {
-  for (const [key, limit] of otpRequestLimits.entries()) {
-    if (limit.expiresAt <= now) otpRequestLimits.delete(key);
-  }
-  const keys = [`ip:${ip || "unknown"}`, `mobile:${mobile}`];
-  if (otpRequestLimits.size + keys.filter((key) => !otpRequestLimits.has(key)).length > 5000) {
-    return false;
-  }
-  if (keys.some((key) => (otpRequestLimits.get(key)?.count || 0) >= OTP_RATE_LIMIT_MAX)) {
-    return false;
-  }
-  for (const key of keys) {
-    const current = otpRequestLimits.get(key);
-    otpRequestLimits.set(key, {
-      count: (current?.count || 0) + 1,
-      expiresAt: current?.expiresAt || now + OTP_RATE_LIMIT_WINDOW_MS,
-    });
-  }
-  return true;
-}
 /*
 |--------------------------------------------------------------------------
 | BASE & HEALTH CHECK
@@ -493,6 +482,12 @@ async function jctslFetchOnce(url, { method, mergedHeaders, requestBody, timeout
       );
     }
 
+    if (isJson && jsonData && typeof jsonData === "object") {
+      console.log(
+        `[JCTSL Safe Error Details] requestId=${requestId} | respCode=${String(jsonData.respCode ?? "N/A")} | respMessage=${String(jsonData.respMessage ?? "N/A").slice(0, 150)}`
+      );
+    }
+
     return {
       ok: response.ok,
       status: response.status,
@@ -618,265 +613,6 @@ async function jctslFetch(endpoint, {
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| AUTH: 1. SEND OTP
-| Discovered from LoginActivity.java, a0.java (case 2), c.java:
-| Step 1: POST https://www.omnificent.co.in/OMB/log/usr with LoginRequest
-| Step 2: If dev_mis_flag == "1", confirm device switch with req_type = "1"
-| Step 3: Trigger dynamic OTP POST to (respData.sst + country_code + mobile + respData.sen)
-|--------------------------------------------------------------------------
-*/
-app.post("/api/auth/send-otp", async (req, res) => {
-  try {
-    const { mobile } = req.body || {};
-    const cleanMobile = String(mobile || "").replace(/\D/g, "").slice(-10);
-
-    if (cleanMobile.length !== 10) {
-      return res.status(400).json({
-        success: false,
-        message: "Please enter a valid 10-digit mobile number",
-      });
-    }
-    if (!allowOtpRequest(req.ip, cleanMobile)) {
-      return res.status(429).json({
-        success: false,
-        message: "Too many OTP requests. Please try again later.",
-        error: { code: "OTP_RATE_LIMITED" },
-      });
-    }
-
-    const countryCode = "+91";
-
-    // 1. Send LoginRequest to JCTSL /log/usr
-    const loginPayload = {
-      req_type: "0",
-      country_code: countryCode,
-      mobile: cleanMobile,
-    };
-    const deviceFields = [
-      "ph_brand", "ph_mdl", "os_ver", "dev_id", "ver_nm", "ver_cd", "fcm_token",
-    ];
-    for (const field of deviceFields) {
-      const value = req.body?.[field] ?? process.env[`JCTSL_${field.toUpperCase()}`];
-      if (typeof value === "string" && value.trim() && value.length <= 256) {
-        loginPayload[field] = value.trim();
-      }
-    }
-
-    let logUsrRes = await jctslFetch("log/usr", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: loginPayload,
-      context: "sendOtp-login",
-      timeoutMs: 12000,
-    });
-
-    let logUsrData = logUsrRes.isJson ? logUsrRes.data : null;
-
-    if (logUsrData?.respData?.dev_mis_flag === "1") {
-      return res.status(409).json({
-        success: false,
-        message: "JCTSL requires explicit confirmation to switch the registered device",
-        error: { code: "DEVICE_SWITCH_REQUIRES_CONFIRMATION" },
-      });
-    }
-
-    const respData = logUsrData?.respData;
-    if (!logUsrRes.ok || !logUsrRes.isJson || !respData?.authToken || !respData?.userId) {
-      return res.status(400).json({
-        success: false,
-        message: "JCTSL could not start the OTP verification flow",
-      });
-    }
-
-    let expectedOtp = null;
-
-    if (respData.sst && respData.sen) {
-      // Dynamic OTP URL from JCTSL server
-      const otpUrl = new URL(`${respData.sst}${countryCode}${cleanMobile}${respData.sen}`);
-      if (otpUrl.protocol !== "https:" || otpUrl.username || otpUrl.password) {
-        return res.status(502).json({
-          success: false,
-          message: "JCTSL returned an unsupported OTP verification URL",
-        });
-      }
-
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 8000);
-        let otpFetchRes;
-        try {
-          otpFetchRes = await fetch(otpUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            redirect: "error",
-            signal: controller.signal,
-          });
-        } finally {
-          clearTimeout(timeout);
-        }
-        const otpJson = otpFetchRes.ok ? await otpFetchRes.json() : null;
-        if (typeof otpJson?.OTP === "string" || typeof otpJson?.OTP === "number") {
-          expectedOtp = String(otpJson.OTP).trim();
-        }
-      } catch (otpErr) {
-        console.warn("[JCTSL OTP] Provider challenge request failed");
-      }
-    }
-
-    prunePendingAuth();
-    if (pendingAuthMap.size >= 1000 && !pendingAuthMap.has(cleanMobile)) {
-      return res.status(503).json({
-        success: false,
-        message: "OTP verification is temporarily unavailable",
-      });
-    }
-
-    // Store pending auth state
-    pendingAuthMap.set(cleanMobile, {
-      authToken: respData.authToken,
-      userId: respData.userId,
-      expectedOtp,
-      respData,
-      timestamp: Date.now(),
-      failedAttempts: 0,
-    });
-
-    return res.json({
-      success: true,
-      message: "OTP challenge requested",
-      verificationAvailable: expectedOtp !== null,
-    });
-  } catch (error) {
-    console.error(`[JCTSL OTP] Request failed (code: ${error.code || "OTP_ERROR"})`);
-    return res.status(500).json({
-      success: false,
-      message: "Error sending OTP through JCTSL",
-      error: { code: error.code || "OTP_ERROR" },
-    });
-  }
-});
-
-/*
-|--------------------------------------------------------------------------
-| AUTH: 2. VERIFY OTP
-| Discovered from LoginActivity.java, a0.java (case 3), c.java (case 2), n2.java:
-| Step 1: Validate OTP (match expectedOtp or server validation)
-| Step 2: POST https://www.omnificent.co.in/OMB/verifyuser with VerifyUserRequest
-| Step 3: On respCode == "200" & respMessage == "Success", activate session
-|--------------------------------------------------------------------------
-*/
-app.post("/api/auth/verify-otp", async (req, res) => {
-  try {
-    const { mobile, otp } = req.body || {};
-    const cleanMobile = String(mobile || "").replace(/\D/g, "").slice(-10);
-    const cleanOtp = String(otp || "").trim();
-
-    if (!cleanMobile || !cleanOtp) {
-      return res.status(400).json({
-        success: false,
-        message: "Mobile and OTP are required",
-      });
-    }
-
-    const pending = pendingAuthMap.get(cleanMobile);
-    if (!pending) {
-      return res.status(400).json({
-        success: false,
-        message: "No pending OTP request found. Please request an OTP first.",
-      });
-    }
-
-    if (Date.now() - pending.timestamp > 10 * 60 * 1000) {
-      pendingAuthMap.delete(cleanMobile);
-      return res.status(400).json({
-        success: false,
-        message: "OTP challenge expired. Please request a new OTP.",
-      });
-    }
-    if (!pending.expectedOtp) {
-      return res.status(503).json({
-        success: false,
-        message: "JCTSL did not provide a verifiable OTP challenge",
-        error: { code: "OTP_VERIFICATION_UNAVAILABLE" },
-      });
-    }
-    if (pending.expectedOtp !== cleanOtp) {
-      pending.failedAttempts++;
-      if (pending.failedAttempts >= 5) pendingAuthMap.delete(cleanMobile);
-      return res.status(400).json({
-        success: false,
-        message: "Invalid OTP. Please check and try again.",
-      });
-    }
-
-    // Call official JCTSL verifyuser endpoint
-    const verifyPayload = {
-      country_code: "+91",
-      mobile: cleanMobile,
-    };
-
-    const verifyUpstream = await jctslFetch("verifyuser", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: verifyPayload,
-      context: "verifyOtp",
-      timeoutMs: 12000,
-    });
-
-    const verifyData = verifyUpstream.isJson ? verifyUpstream.data : null;
-
-    if (
-      verifyData?.respCode !== "200" ||
-      verifyData?.respMessage !== "Success"
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: verifyData?.respMessage || "OTP verification failed",
-      });
-    }
-
-    // Keep the verified session in memory only; serverless replicas are independent.
-    const newSession = {
-      authToken: pending.authToken,
-      userId: pending.userId,
-      mobile: cleanMobile,
-      user: {
-        mobile: cleanMobile,
-        firstName: pending.respData?.first_name || "",
-        lastName: pending.respData?.last_name || "",
-        email: pending.respData?.user_email || "",
-      },
-    };
-
-    await saveSession(newSession);
-    pendingAuthMap.delete(cleanMobile);
-
-    return res.json({
-      success: true,
-      message: "Login successful",
-      user: sessionManager.getActiveSession().user,
-    });
-  } catch (error) {
-    const errorCode = getSafeErrorCode(error, "OTP_ERROR");
-    console.error(`[JCTSL OTP] Verification failed (code: ${errorCode})`);
-    if (IS_VERCEL_RUNTIME && errorCode.startsWith("SESSION_STORE_")) {
-      return res.status(503).json({
-        success: false,
-        message: "The server-side JCTSL session store is temporarily unavailable.",
-        error: { code: "SESSION_STORE_UNAVAILABLE" },
-      });
-    }
-    return res.status(500).json({
-      success: false,
-      message: "Error verifying OTP",
-      error: { code: errorCode },
-    });
-  }
-});
 
 /*
 |--------------------------------------------------------------------------
@@ -944,16 +680,6 @@ app.post("/api/auth/logout", async (req, res) => {
 app.post("/api/cities", async (req, res) => {
   try {
     const headers = await ensureAuthHeaders(req);
-    if (!headers) {
-      if (IS_VERCEL_RUNTIME) {
-        return respondWithSessionFailure(res);
-      }
-      return res.status(401).json({
-        success: false,
-        message: "Login required for live JCTSL data",
-        requiresAuth: true,
-      });
-    }
 
     const upstream = await jctslFetch("SUser/citiList", {
       method: "POST",
@@ -1115,9 +841,6 @@ const handleBusStops = async (req, res) => {
     }
 
     const headers = await ensureAuthHeaders(req);
-    if (!headers && IS_VERCEL_RUNTIME) {
-      return respondWithSessionFailure(res);
-    }
     if (headers) {
       const city_id = req.query?.city_id || req.body?.city_id || "1";
       const targetUrl = new URL("usr/citibuslist", targetBase).toString();
@@ -1202,9 +925,6 @@ const handleBusesNearStop = async (req, res) => {
     }
 
     const headers = await ensureAuthHeaders(req);
-    if (!headers && IS_VERCEL_RUNTIME) {
-      return respondWithSessionFailure(res);
-    }
     if (headers) {
       const upstream = await jctslFetch("log/vehnearstop", {
         method: "POST",
@@ -1277,6 +997,55 @@ const liveBusFetchPromises = new Map();
 let lastLiveBusFetchTimestamp = 0;
 let pollerAuthWarningLogged = false;
 
+let telemetryRestorePromise = null;
+let telemetryRestored = false;
+
+async function ensureTelemetryRestored() {
+  if (telemetryRestored) return true;
+  if (telemetryRestorePromise) return telemetryRestorePromise;
+
+  telemetryRestorePromise = (async () => {
+    try {
+      const snapshot = await telemetryStore.load();
+
+      if (snapshot) {
+        const restored = telemetryEngine.restoreSnapshot(snapshot);
+
+        if (restored) {
+          const summary = telemetryEngine.getSummary();
+          lastLiveBusFetchTimestamp = Date.parse(summary.lastUpdated) || 0;
+        } else {
+          console.warn("Stored telemetry snapshot was rejected.");
+        }
+      }
+
+      telemetryRestored = true;
+      return true;
+    } catch (error) {
+      console.error("Telemetry restore failed:", error.code || "UNKNOWN_ERROR");
+      throw error;
+    }
+  })();
+
+  try {
+    return await telemetryRestorePromise;
+  } catch (error) {
+    telemetryRestorePromise = null;
+    throw error;
+  }
+}
+
+async function persistTelemetrySnapshotSafely() {
+  try {
+    await telemetryStore.save(telemetryEngine.createSnapshot());
+    return true;
+  } catch (error) {
+    console.error("Telemetry snapshot save failed:", error.code || "UNKNOWN_ERROR");
+    return false;
+  }
+}
+
+
 function parseLiveBusResponse(upstream) {
   const responseCode = String(upstream?.data?.respCode || "");
   const responseMessage = String(upstream?.data?.respMessage || "");
@@ -1324,6 +1093,34 @@ async function fetchLiveBusesFromUpstream(headers, orgId = "1", context = "handl
   });
 }
 
+async function checkUpstreamSessionValidity(headers) {
+  try {
+    const check = await jctslFetch("Log/getAvailableroutes", {
+      method: "POST",
+      headers,
+      body: { city_id: "1" },
+      context: "sessionExpiryValidation",
+      timeoutMs: 6000,
+      retry: false,
+    });
+    const checkCode = String(check?.data?.respCode || check?.status || "");
+    const checkMsg = String(check?.data?.respMessage || "");
+    if (
+      check.status === 401 ||
+      checkCode === "401" ||
+      /session.*expired|unauthor/i.test(checkMsg)
+    ) {
+      return { valid: false, expired: true };
+    }
+    if (check.ok && check.isJson && checkCode === "200") {
+      return { valid: true, expired: false };
+    }
+    return { valid: false, expired: false };
+  } catch (_) {
+    return { valid: false, expired: false };
+  }
+}
+
 async function verifyRestoredJctslSession(candidate) {
   const headers = {
     "User-Agent": "okhttp/4.9.0",
@@ -1339,15 +1136,28 @@ async function verifyRestoredJctslSession(candidate) {
   );
   const parsed = parseLiveBusResponse(upstream);
   if (!parsed.success) {
-    updateUpstreamFailure(parsed.errorCode);
+    let errorCode = parsed.errorCode;
+    let rejected = errorCode === "AUTH_SESSION_EXPIRED";
+
+    if (!rejected && (errorCode === "NON_JSON_RESPONSE" || (upstream.status === 200 && (!upstream.isJson || !upstream.data)))) {
+      const validity = await checkUpstreamSessionValidity(headers);
+      if (validity.expired) {
+        console.warn("[JCTSL Auth] Session candidate confirmed expired via JCTSL route cross-check");
+        errorCode = "AUTH_SESSION_EXPIRED";
+        rejected = true;
+      }
+    }
+
+    updateUpstreamFailure(errorCode);
     return {
       success: false,
-      rejected: parsed.errorCode === "AUTH_SESSION_EXPIRED",
-      errorCode: parsed.errorCode,
+      rejected,
+      errorCode,
     };
   }
 
   telemetryEngine.processTelemetry(parsed.vehicles);
+  await persistTelemetrySnapshotSafely();
   lastLiveBusFetchTimestamp = Date.now();
   updateUpstreamSuccess();
   return { success: true };
@@ -1395,6 +1205,9 @@ function respondWithLiveBusFailure(res, {
   upstreamStatus = null,
   requestId = null,
 } = {}) {
+  const normalizedErrorCode = String(errorCode).startsWith("SESSION_STORE_")
+    ? "SESSION_STORE_UNAVAILABLE"
+    : errorCode;
   const cachedVehicles = telemetryEngine.getLiveVehicles();
   const summary = telemetryEngine.getSummary();
   const hasRealCache = cachedVehicles.length > 0 && summary.lastUpdated !== null;
@@ -1412,7 +1225,7 @@ function respondWithLiveBusFailure(res, {
       timestamp,
       cacheTimestamp: summary.lastUpdated,
       upstreamStatus,
-      errorCode,
+      errorCode: normalizedErrorCode,
       requestId,
       summary,
       respData: cachedVehicles,
@@ -1423,9 +1236,9 @@ function respondWithLiveBusFailure(res, {
     success: false,
     dataAvailable: false,
     respCode: "0",
-    respMessage: errorCode === "AUTH_REQUIRED"
+    respMessage: normalizedErrorCode === "AUTH_REQUIRED"
       ? "No active server-side JCTSL session is available; complete authorized authentication."
-      : errorCode === "AUTH_SESSION_EXPIRED"
+      : normalizedErrorCode === "AUTH_SESSION_EXPIRED"
         ? "JCTSL did not accept the active session; complete authorized authentication."
         : "Live JCTSL telemetry is unavailable",
     upstreamReachable: false,
@@ -1434,8 +1247,8 @@ function respondWithLiveBusFailure(res, {
     timestamp,
     cacheTimestamp: null,
     upstreamStatus,
-    error: { code: errorCode },
-    errorCode,
+    error: { code: normalizedErrorCode },
+    errorCode: normalizedErrorCode,
     requestId,
     summary,
     respData: [],
@@ -1444,12 +1257,19 @@ function respondWithLiveBusFailure(res, {
 
 const handleLiveBuses = async (req, res) => {
   try {
+    try {
+      await ensureTelemetryRestored();
+    } catch (error) {
+      console.error("Telemetry restore skipped:", error.code || "UNKNOWN_ERROR");
+    }
     const org_id = req.query?.org_id || req.body?.org_id || "1";
     let headers = null;
     if (IS_VERCEL_RUNTIME) {
       headers = await ensureAuthHeaders(req);
       if (!headers) {
-        return respondWithSessionFailure(res);
+        const errorCode =
+          sessionManager.getLastValidationErrorCode() || "AUTH_REQUIRED";
+        return respondWithLiveBusFailure(res, { errorCode });
       }
     }
     const now = Date.now();
@@ -1478,9 +1298,6 @@ const handleLiveBuses = async (req, res) => {
     if (!headers) {
       const errorCode =
         sessionManager.getLastValidationErrorCode() || "AUTH_REQUIRED";
-      if (IS_VERCEL_RUNTIME) {
-        return respondWithSessionFailure(res, errorCode);
-      }
       return respondWithLiveBusFailure(res, { errorCode });
     }
 
@@ -1488,7 +1305,13 @@ const handleLiveBuses = async (req, res) => {
 
     const parsedResponse = parseLiveBusResponse(upstream);
     if (!parsedResponse.success) {
-      const { errorCode } = parsedResponse;
+      let { errorCode } = parsedResponse;
+      if (errorCode === "NON_JSON_RESPONSE" && (!upstream?.rawText || upstream.rawText.trim() === "")) {
+        const validity = await checkUpstreamSessionValidity(headers);
+        if (validity.expired) {
+          errorCode = "AUTH_SESSION_EXPIRED";
+        }
+      }
       await invalidateSessionAfterAuthRejection(errorCode, headers);
       updateUpstreamFailure(errorCode);
       return respondWithLiveBusFailure(res, {
@@ -1500,6 +1323,7 @@ const handleLiveBuses = async (req, res) => {
     const { data, vehicles: rawVehicles } = parsedResponse;
 
     const { summary, vehicles } = telemetryEngine.processTelemetry(rawVehicles);
+    await persistTelemetrySnapshotSafely();
     updateUpstreamSuccess();
     lastLiveBusFetchTimestamp = Date.now();
 
@@ -1561,13 +1385,21 @@ async function pollJctslTelemetry() {
 
     const parsedResponse = parseLiveBusResponse(upstream);
     if (!parsedResponse.success) {
-      await invalidateSessionAfterAuthRejection(parsedResponse.errorCode, headers);
-      updateUpstreamFailure(parsedResponse.errorCode);
+      let errorCode = parsedResponse.errorCode;
+      if (errorCode === "NON_JSON_RESPONSE" && (!upstream?.rawText || upstream.rawText.trim() === "")) {
+        const validity = await checkUpstreamSessionValidity(headers);
+        if (validity.expired) {
+          errorCode = "AUTH_SESSION_EXPIRED";
+        }
+      }
+      await invalidateSessionAfterAuthRejection(errorCode, headers);
+      updateUpstreamFailure(errorCode);
       return;
     }
 
     const { vehicles: rawVehicles } = parsedResponse;
-    telemetryEngine.processTelemetry(rawVehicles);
+      telemetryEngine.processTelemetry(rawVehicles);
+      await persistTelemetrySnapshotSafely();
     lastLiveBusFetchTimestamp = Date.now();
     updateUpstreamSuccess();
   } catch (err) {
@@ -1780,7 +1612,15 @@ app.get("/api/routes/search", async (req, res) => {
       } catch (_) {}
     }
 
-    const routes = availableRoutesCache?.respData || [];
+    const routes = (availableRoutesCache?.respData && availableRoutesCache.respData.length > 0)
+      ? availableRoutesCache.respData
+      : (routeSearchEngine.canonicalRoutes || []).map((r) => ({
+          route_id: String(r.route_id),
+          route_orgno: String(r.route_orgno || ""),
+          route_name: String(r.route_name || ""),
+          routetype: String(r.routetype || "City"),
+          rkm: String(r.rkm || "0.00"),
+        }));
     const query = String(req.query?.q || "").trim();
     if (!query) {
       return res.json({ success: true, count: routes.length, routes });
@@ -2334,7 +2174,7 @@ if (require.main === module) {
     console.log(`JBL Backend running on http://localhost:${PORT}`);
     if (!sessionManager.hasActiveSession() && !sessionManager.hasRestoredSession()) {
       console.warn(
-        "[JCTSL Auth] No configured session; background polling will wait for a verified OTP session."
+        "[JCTSL Auth] No configured session; background polling will wait for a verified server session."
       );
     }
     if (!JCTSL_DIAGNOSTIC_MODE) {
@@ -2355,7 +2195,12 @@ Object.assign(module.exports, {
   updateUpstreamFailure,
   TRANSIENT_ERROR_CODES,
   parseLiveBusResponse,
-  allowOtpRequest,
+  checkUpstreamSessionValidity,
+  verifyRestoredJctslSession,
   JCTSL_BASE_URL,
   JCTSL_HOST,
+  sessionManager,
+  telemetryEngine,
+  telemetryStore,
+  setLastLiveBusFetchTimestamp: (ts) => { lastLiveBusFetchTimestamp = ts; },
 });

@@ -190,3 +190,134 @@ test("a successful empty vehicle response clears old markers and reports a genui
   assert.equal(empty.summary.lastUpdated, new Date(clock.now()).toISOString());
   assert.deepEqual(engine.getLiveVehicles(), []);
 });
+
+test("snapshot stores telemetry vehicles and observations with schema version", () => {
+  const clock = createClock();
+  const engine = new TelemetryEngine({ now: clock.now });
+
+  engine.processTelemetry([reading("RJ14REDIS01", 26.9, 75.81)]);
+  const snapshot = engine.createSnapshot();
+
+  assert.equal(snapshot.schemaVersion, 1);
+  assert.ok(Array.isArray(snapshot.vehicles));
+  assert.ok(Array.isArray(snapshot.observations));
+  assert.equal(snapshot.vehicles.length, 1);
+  assert.equal(snapshot.observations.length, 1);
+  assert.equal(snapshot.savedAt, clock.now());
+});
+
+test("restoring snapshot preserves original GPS timestamps", () => {
+  const clock = createClock();
+  const engine = new TelemetryEngine({ now: clock.now });
+
+  engine.processTelemetry([reading("RJ14REDIS02", 26.9, 75.81)]);
+  clock.advance(60_000);
+  engine.processTelemetry([reading("RJ14REDIS02", 26.901, 75.81)]);
+
+  const snapshot = engine.createSnapshot();
+  const restoredEngine = new TelemetryEngine({ now: clock.now });
+
+  assert.equal(restoredEngine.restoreSnapshot(snapshot), true);
+
+  const restoredBus = oneVehicle(
+    { vehicles: restoredEngine.getLiveVehicles() },
+    "RJ14REDIS02"
+  );
+
+  assert.ok(restoredBus);
+  assert.equal(restoredBus.currentTimestamp, 1_800_000_060_000);
+  assert.equal(restoredBus.previousTimestamp, 1_800_000_000_000);
+});
+
+test("restored old GPS observation does not create fake speed after maximum observation gap", () => {
+  const clock = createClock();
+  const engine = new TelemetryEngine({ now: clock.now });
+
+  engine.processTelemetry([reading("RJ14REDIS03", 26.9, 75.81)]);
+  const snapshot = engine.createSnapshot();
+
+  clock.advance(130_000);
+
+  const restoredEngine = new TelemetryEngine({ now: clock.now });
+  assert.equal(restoredEngine.restoreSnapshot(snapshot), true);
+
+  clock.advance(25_000);
+  const result = restoredEngine.processTelemetry([
+    reading("RJ14REDIS03", 26.901, 75.81),
+  ]);
+
+  const bus = oneVehicle(result, "RJ14REDIS03");
+  assert.ok(bus);
+  assert.equal(bus.speed, null);
+  assert.equal(bus.previousTimestamp, null);
+  assert.equal(bus.status, "LIVE · IDLE");
+});
+
+test("restore rejects snapshots with a future savedAt timestamp", () => {
+  const clock = createClock();
+  const engine = new TelemetryEngine({ now: clock.now });
+
+  engine.processTelemetry([reading("RJ14REDIS05", 26.9, 75.81)]);
+  const snapshot = engine.createSnapshot();
+  snapshot.savedAt += 1;
+
+  const restoredEngine = new TelemetryEngine({ now: clock.now });
+  assert.equal(restoredEngine.restoreSnapshot(snapshot), false);
+});
+
+test("restore rejects observations newer than their vehicle timestamp", () => {
+  const clock = createClock();
+  const engine = new TelemetryEngine({ now: clock.now });
+
+  engine.processTelemetry([reading("RJ14REDIS06", 26.9, 75.81)]);
+  const snapshot = engine.createSnapshot();
+  snapshot.observations[0][1].observedAt += 1;
+
+  const restoredEngine = new TelemetryEngine({ now: clock.now });
+  assert.equal(restoredEngine.restoreSnapshot(snapshot), true);
+  assert.equal(restoredEngine.observationStore.has("RJ14REDIS06"), false);
+});
+
+test("restore rejects stationarySince later than observedAt", () => {
+  const clock = createClock();
+  const engine = new TelemetryEngine({ now: clock.now });
+
+  engine.processTelemetry([reading("RJ14REDIS07", 26.9, 75.81)]);
+  const snapshot = engine.createSnapshot();
+  snapshot.observations[0][1].stationarySince =
+    snapshot.observations[0][1].observedAt + 1;
+
+  const restoredEngine = new TelemetryEngine({ now: clock.now });
+  assert.equal(restoredEngine.restoreSnapshot(snapshot), true);
+  assert.equal(restoredEngine.observationStore.has("RJ14REDIS07"), false);
+});
+
+test("restore discards telemetry records older than fifteen minutes", () => {
+  const clock = createClock();
+  const engine = new TelemetryEngine({ now: clock.now });
+
+  engine.processTelemetry([reading("RJ14REDIS04", 26.9, 75.81)]);
+  const snapshot = engine.createSnapshot();
+
+  clock.advance(900_001);
+
+  const restoredEngine = new TelemetryEngine({ now: clock.now });
+  assert.equal(restoredEngine.restoreSnapshot(snapshot), true);
+  assert.deepEqual(restoredEngine.getLiveVehicles(), []);
+});
+
+
+test("restore does not overwrite fresher in-memory telemetry", () => {
+  const clock = createClock();
+  const engine = new TelemetryEngine({ now: clock.now });
+
+  engine.processTelemetry([reading("RJ14REDIS05", 26.9, 75.81)]);
+  const snapshot = engine.createSnapshot();
+
+  clock.advance(30_000);
+  const activeEngine = new TelemetryEngine({ now: clock.now });
+  activeEngine.processTelemetry([reading("RJ14REDIS05", 26.905, 75.815)]);
+
+  // The active engine has fresher in-memory telemetry than snapshot.savedAt
+  assert.equal(activeEngine.restoreSnapshot(snapshot), false);
+});

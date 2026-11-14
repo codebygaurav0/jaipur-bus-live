@@ -1451,7 +1451,9 @@ export default function App() {
                   ? "Loading live data..."
                   : cityLiveBusesError
                     ? "Unable to fetch live data"
-                    : cityLiveBusesSource === "live"
+                    : cityLiveBuses.length === 0
+                      ? "Waiting for live tracking data"
+                      : cityLiveBusesSource === "live"
                       ? `${cityLiveBuses.length} live buses • Updated ${telemetryTimeLabel}`
                       : cityLiveBusesSource === "cached"
                         ? `${cityLiveBuses.length} cached buses • Last updated ${telemetryTimeLabel}`
@@ -2495,6 +2497,7 @@ export default function App() {
       {/* ========================================================= */}
       {/* 9. FAVORITES MODAL                                        */}
       {/* ========================================================= */}
+
       {showFavoritesModal && (
         <div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/50 p-4 animate-fadeIn">
           <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl">

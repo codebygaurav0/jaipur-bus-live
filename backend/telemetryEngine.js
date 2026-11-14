@@ -378,6 +378,171 @@ class TelemetryEngine {
     };
   }
 
+  createSnapshot() {
+    const savedAt = this.now();
+
+    if (!Number.isFinite(savedAt)) {
+      throw new Error("Telemetry snapshot clock returned an invalid timestamp");
+    }
+
+    return {
+      schemaVersion: 1,
+      savedAt,
+      vehicles: Array.from(this.vehicleStore.entries()).map(
+        ([vehicleNumber, record]) => [vehicleNumber, { ...record }]
+      ),
+      observations: Array.from(this.observationStore.entries()).map(
+        ([vehicleNumber, observation]) => [
+          vehicleNumber,
+          { ...observation },
+        ]
+      ),
+      latestSummary: { ...this.latestSummary },
+    };
+  }
+
+  restoreSnapshot(snapshot) {
+    const now = this.now();
+
+    if (
+      !Number.isFinite(now) ||
+      !snapshot ||
+      typeof snapshot !== "object" ||
+      snapshot.schemaVersion !== 1 ||
+      !Number.isFinite(snapshot.savedAt) ||
+      snapshot.savedAt > now ||
+      !Array.isArray(snapshot.vehicles) ||
+      !Array.isArray(snapshot.observations)
+    ) {
+      return false;
+    }
+
+    if (this.vehicleStore.size > 0) {
+      let latestInMemoryTimestamp = 0;
+      for (const record of this.vehicleStore.values()) {
+        if (record && Number.isFinite(record.currentTimestamp)) {
+          if (record.currentTimestamp > latestInMemoryTimestamp) {
+            latestInMemoryTimestamp = record.currentTimestamp;
+          }
+        }
+      }
+      if (latestInMemoryTimestamp >= snapshot.savedAt) {
+        return false;
+      }
+    }
+
+    const restoredVehicles = new Map();
+    const restoredObservations = new Map();
+
+    for (const entry of snapshot.vehicles) {
+      if (!Array.isArray(entry) || entry.length !== 2) continue;
+
+      const [vehicleNumber, record] = entry;
+
+      if (
+        typeof vehicleNumber !== "string" ||
+        !vehicleNumber ||
+        !record ||
+        typeof record !== "object" ||
+        record.vehicleNumber !== vehicleNumber ||
+        !Number.isFinite(record.currentTimestamp)
+      ) {
+        continue;
+      }
+
+      const ageMs = now - record.currentTimestamp;
+
+      if (ageMs < 0 || ageMs > this.thresholds.expireAfterMs) {
+        continue;
+      }
+
+      restoredVehicles.set(vehicleNumber, { ...record });
+    }
+
+    for (const entry of snapshot.observations) {
+      if (!Array.isArray(entry) || entry.length !== 2) continue;
+
+      const [vehicleNumber, observation] = entry;
+
+      if (
+        !restoredVehicles.has(vehicleNumber) ||
+        !observation ||
+        typeof observation !== "object" ||
+        !Number.isFinite(observation.latitude) ||
+        !Number.isFinite(observation.longitude) ||
+        !Number.isFinite(observation.observedAt) ||
+        !Number.isInteger(observation.stationaryReadings) ||
+        observation.stationaryReadings < 0
+      ) {
+        continue;
+      }
+
+      const ageMs = now - observation.observedAt;
+      const vehicleRecord = restoredVehicles.get(vehicleNumber);
+
+      if (
+        ageMs < 0 ||
+        ageMs > this.thresholds.expireAfterMs ||
+        observation.observedAt > vehicleRecord.currentTimestamp ||
+        !isValidJaipurGps(observation.latitude, observation.longitude) ||
+        (
+          observation.stationarySince !== null &&
+          observation.stationarySince !== undefined &&
+          (
+            !Number.isFinite(observation.stationarySince) ||
+            observation.stationarySince > now ||
+            observation.stationarySince > observation.observedAt
+          )
+        )
+      ) {
+        continue;
+      }
+
+      restoredObservations.set(vehicleNumber, { ...observation });
+    }
+
+    const summary = snapshot.latestSummary;
+    const summaryKeys = [
+      "totalReceived",
+      "validGps",
+      "liveMoving",
+      "liveSlow",
+      "liveIdle",
+      "liveStopped",
+      "gpsStale",
+      "gpsInvalid",
+      "rejected",
+    ];
+
+    const restoredSummary = { ...this.latestSummary };
+
+    if (summary && typeof summary === "object") {
+      for (const key of summaryKeys) {
+        if (
+          Number.isFinite(summary[key]) &&
+          summary[key] >= 0
+        ) {
+          restoredSummary[key] = summary[key];
+        }
+      }
+
+      if (
+        summary.lastUpdated === null ||
+        (
+          typeof summary.lastUpdated === "string" &&
+          Number.isFinite(Date.parse(summary.lastUpdated))
+        )
+      ) {
+        restoredSummary.lastUpdated = summary.lastUpdated;
+      }
+    }
+
+    this.vehicleStore = restoredVehicles;
+    this.observationStore = restoredObservations;
+    this.latestSummary = restoredSummary;
+
+    return true;
+  }
   getLiveVehicles() {
     const now = this.now();
     if (!Number.isFinite(now)) {

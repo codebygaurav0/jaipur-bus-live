@@ -110,9 +110,10 @@ async function getJson(baseUrl, route, headers = {}) {
   });
 }
 
-test("Vercel missing Redis session returns 401 despite environment credentials", async () => {
+test("Vercel missing Redis session initializes configured environment credentials and saves to Redis", async () => {
   redis.mode = "missing";
   redis.record = null;
+  providerRequests.length = 0;
 
   const headers = await ensureAuthHeaders({
     headers: {
@@ -120,20 +121,41 @@ test("Vercel missing Redis session returns 401 despite environment credentials",
       "user-id": "test-inbound-user",
     },
   });
-  assert.equal(headers, null);
+  assert.ok(headers);
+  assert.equal(headers["Auth-token"], "test-environment-token");
+  assert.equal(headers["User-ID"], "test-environment-user");
+  assert.ok(redis.record);
+  assert.equal(JSON.parse(redis.record).authToken, "test-environment-token");
 
   await withServer(async (baseUrl) => {
     const response = await getJson(baseUrl, "/api/auth/session");
-    assert.equal(response.status, 401);
-    assert.equal(response.body.authenticated, false);
-    assert.equal(response.body.error.code, "AUTH_REQUIRED");
-    const liveResponse = await getJson(baseUrl, "/api/live-buses", {
-      "auth-token": "test-inbound-token",
-      "user-id": "test-inbound-user",
-    });
-    assert.equal(liveResponse.status, 401);
-    assert.equal(liveResponse.body.error.code, "AUTH_REQUIRED");
+    assert.equal(response.status, 200);
+    assert.equal(response.body.authenticated, true);
   });
+});
+
+test("Vercel missing Redis session returns 401 when no environment credentials configured", async () => {
+  redis.mode = "missing";
+  redis.record = null;
+  const oldToken = process.env.JCTSL_AUTH_TOKEN;
+  const oldUser = process.env.JCTSL_USER_ID;
+  delete process.env.JCTSL_AUTH_TOKEN;
+  delete process.env.JCTSL_USER_ID;
+
+  try {
+    const headers = await ensureAuthHeaders({});
+    assert.equal(headers, null);
+
+    await withServer(async (baseUrl) => {
+      const response = await getJson(baseUrl, "/api/auth/session");
+      assert.equal(response.status, 401);
+      assert.equal(response.body.authenticated, false);
+      assert.equal(response.body.error.code, "AUTH_REQUIRED");
+    });
+  } finally {
+    process.env.JCTSL_AUTH_TOKEN = oldToken;
+    process.env.JCTSL_USER_ID = oldUser;
+  }
 });
 
 test("Vercel Redis read failure returns 503 instead of environment fallback", async () => {

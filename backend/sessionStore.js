@@ -290,6 +290,7 @@ function createSessionManager({
   store,
   verifySession,
   requireStoredSession = false,
+  getConfiguredSession = null,
 }) {
   if (!store || typeof verifySession !== "function") {
     throw new TypeError("A session store and session verifier are required");
@@ -300,6 +301,7 @@ function createSessionManager({
   let restoredSession = null;
   let validationPromise = null;
   let lastValidationErrorCode = null;
+  let hasLoggedOut = false;
 
   function getActiveSession() {
     return activeSession;
@@ -378,6 +380,7 @@ function createSessionManager({
     activeSource = "configured";
     restoredSession = null;
     lastValidationErrorCode = null;
+    hasLoggedOut = false;
   }
 
   function saveVerifiedSession(session) {
@@ -389,12 +392,14 @@ function createSessionManager({
       activeSource = "stored";
       restoredSession = null;
       lastValidationErrorCode = null;
+      hasLoggedOut = false;
     };
     if (saved && typeof saved.then === "function") return saved.then(activate);
     activate();
   }
 
   function logout() {
+    hasLoggedOut = true;
     const cleared = store.clear();
     const finish = () => {
       activeSession = null;
@@ -446,12 +451,54 @@ function createSessionManager({
       return { success: false, errorCode: lastValidationErrorCode };
     }
     if (activeSession) return { success: true };
+
     if (!restoredSession) {
+      if (!hasLoggedOut && typeof getConfiguredSession === "function") {
+        const configured = getConfiguredSession();
+        const candidate = normalizeSession(configured);
+        if (candidate) {
+          if (validationPromise) return validationPromise;
+          validationPromise = (async () => {
+            let result;
+            try {
+              result = await verifySession(candidate);
+            } catch (error) {
+              result = {
+                success: false,
+                errorCode: /^[A-Z0-9_:-]{1,64}$/i.test(error?.code || "")
+                  ? error.code
+                  : "SESSION_VALIDATION_FAILED",
+              };
+            }
+            if (result?.success) {
+              try {
+                await store.save(candidate);
+              } catch (error) {
+                lastValidationErrorCode = error.code || "SESSION_STORE_WRITE_FAILED";
+                return { success: false, errorCode: lastValidationErrorCode };
+              }
+              activeSession = { ...configured, ...candidate };
+              activeSource = "stored";
+              restoredSession = null;
+              lastValidationErrorCode = null;
+              return { success: true };
+            }
+            lastValidationErrorCode = result?.rejected
+              ? "AUTH_REQUIRED"
+              : (result?.errorCode || "SESSION_VALIDATION_FAILED");
+            return { success: false, errorCode: lastValidationErrorCode };
+          })().finally(() => {
+            validationPromise = null;
+          });
+          return validationPromise;
+        }
+      }
       return {
         success: false,
         errorCode: lastValidationErrorCode || "AUTH_REQUIRED",
       };
     }
+
     if (validationPromise) return validationPromise;
 
     const candidate = restoredSession;
@@ -498,6 +545,37 @@ function createSessionManager({
             persistenceErrorCode: error.code || "SESSION_STORE_CLEAR_FAILED",
           };
         }
+
+        if (!hasLoggedOut && typeof getConfiguredSession === "function") {
+          const configured = getConfiguredSession();
+          const confCandidate = normalizeSession(configured);
+          if (confCandidate && !sameSession(confCandidate, candidate)) {
+            let confResult;
+            try {
+              confResult = await verifySession(confCandidate);
+            } catch (error) {
+              confResult = {
+                success: false,
+                errorCode: /^[A-Z0-9_:-]{1,64}$/i.test(error?.code || "")
+                  ? error.code
+                  : "SESSION_VALIDATION_FAILED",
+              };
+            }
+            if (confResult?.success) {
+              try {
+                await store.save(confCandidate);
+              } catch (error) {
+                lastValidationErrorCode = error.code || "SESSION_STORE_WRITE_FAILED";
+                return { success: false, errorCode: lastValidationErrorCode };
+              }
+              activeSession = { ...configured, ...confCandidate };
+              activeSource = "stored";
+              lastValidationErrorCode = null;
+              return { success: true };
+            }
+          }
+        }
+
         return { success: false, errorCode: "AUTH_REQUIRED" };
       }
 

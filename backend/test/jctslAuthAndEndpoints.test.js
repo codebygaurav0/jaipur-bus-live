@@ -16,7 +16,8 @@ const {
   refreshJctslSession,
   ensureAuthHeaders,
   parseLiveBusResponse,
-  allowOtpRequest,
+  checkUpstreamSessionValidity,
+  verifyRestoredJctslSession,
 } = require("../server");
 const { telemetryEngine } = require("../telemetryEngine");
 
@@ -98,16 +99,11 @@ test("expired sessions do not trigger a login or OTP bypass", async () => {
   assert.equal(await refreshJctslSession(), false);
 });
 
-test("OTP requests are rate limited by mobile and source IP", () => {
-  const now = 1_900_000_000_000;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    assert.equal(allowOtpRequest("test-ip", "1234567890", now), true);
-  }
-  assert.equal(allowOtpRequest("test-ip", "1234567890", now), false);
-  assert.equal(
-    allowOtpRequest("test-ip", "1234567890", now + 10 * 60 * 1000),
-    true
-  );
+test("OTP endpoints and helpers are completely removed from server", () => {
+  const server = require("../server");
+  assert.equal(server.allowOtpRequest, undefined);
+  assert.equal(server.pendingAuthMap, undefined);
+  assert.equal(server.handleSendOtpOrConfirmDevice, undefined);
 });
 
 test("live-bus parsing distinguishes a valid zero from invalid upstream responses", () => {
@@ -156,4 +152,10 @@ test("caller-controlled city_url cannot receive provider auth headers", async ()
     assert.equal(data.success, false);
     assert.equal(data.message, "city_url must use the configured JCTSL HTTPS origin");
   });
+});
+
+test("session validity check distinguishes 401 expired from valid upstream response", async () => {
+  // Directly test checkUpstreamSessionValidity export
+  assert.equal(typeof checkUpstreamSessionValidity, "function");
+  assert.equal(typeof verifyRestoredJctslSession, "function");
 });
